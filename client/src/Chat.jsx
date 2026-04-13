@@ -15,6 +15,7 @@ function Chat() {
 
   const chatRef = useRef(null);
 
+  // JOIN + LISTENERS
   useEffect(() => {
     if (!nameSet) return;
 
@@ -51,7 +52,12 @@ function Chat() {
     };
   }, [roomId, nameSet, username]);
 
-  // auto scroll
+  // CLEAR MESSAGES ON ROOM CHANGE
+  useEffect(() => {
+    setMessages([]);
+  }, [roomId]);
+
+  // AUTO SCROLL
   useEffect(() => {
     chatRef.current?.scrollTo({
       top: chatRef.current.scrollHeight,
@@ -60,12 +66,13 @@ function Chat() {
   }, [messages]);
 
   const sendMessage = () => {
-    if (!input) return;
+    if (!input.trim()) return;
 
     const messageData = {
       roomId,
       message: input,
-      username
+      username,
+      time: new Date().toLocaleTimeString()
     };
 
     socket.emit("send-message", messageData);
@@ -79,7 +86,7 @@ function Chat() {
     alert("Room link copied!");
   };
 
-  // username input screen
+  // USERNAME SCREEN
   if (!nameSet) {
     return (
       <div style={{ textAlign: "center", marginTop: "100px" }}>
@@ -91,7 +98,7 @@ function Chat() {
         <br /><br />
         <button
           onClick={() => {
-            if (!username) return;
+            if (!username.trim()) return;
             setNameSet(true);
           }}
         >
@@ -107,7 +114,9 @@ function Chat() {
         maxWidth: "500px",
         margin: "auto",
         padding: "20px",
-        textAlign: "center"
+        textAlign: "center",
+        background: "#f5f5f5",
+        borderRadius: "10px"
       }}
     >
       <h2>Room: {roomId}</h2>
@@ -117,12 +126,14 @@ function Chat() {
       <div
         ref={chatRef}
         style={{
-          border: "1px solid black",
+          border: "1px solid #ccc",
           padding: "10px",
           height: "300px",
           overflowY: "scroll",
           marginTop: "10px",
-          textAlign: "left"
+          textAlign: "left",
+          background: "white",
+          borderRadius: "8px"
         }}
       >
         {messages.map((msg, i) => (
@@ -131,7 +142,10 @@ function Chat() {
               <em>{msg.message}</em>
             ) : (
               <>
-                <strong>{msg.username}: </strong>{msg.message}
+                <strong>{msg.username}</strong>: {msg.message}
+                <span style={{ fontSize: "10px", marginLeft: "6px" }}>
+                  {msg.time}
+                </span>
               </>
             )}
           </p>
@@ -142,6 +156,9 @@ function Chat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") sendMessage();
+          }}
           style={{ padding: "8px", width: "70%" }}
         />
         <button onClick={sendMessage}>Send</button>

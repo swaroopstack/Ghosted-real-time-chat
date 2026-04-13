@@ -11,17 +11,17 @@ export const setupSocket = (io) => {
       // store user info
       users[socket.id] = { username, roomId };
 
-      // notify others
       socket.to(roomId).emit("user-joined", `${username} joined the room`);
     });
 
-    // SEND MESSAGE
-    socket.on("send-message", ({ roomId, message, username }) => {
-      if (!username) return;
+    // SEND MESSAGE (UPDATED WITH TIME)
+    socket.on("send-message", ({ roomId, message, username, time }) => {
+      if (!username || !message) return;
 
       const msgData = {
         message,
-        username
+        username,
+        time
       };
 
       socket.to(roomId).emit("receive-message", msgData);
@@ -41,7 +41,7 @@ export const setupSocket = (io) => {
 
         socket.to(roomId).emit("user-left", `${username} left the room`);
 
-        delete users[socket.id]; // cleanup
+        delete users[socket.id];
       }
 
       console.log("User disconnected:", socket.id);
