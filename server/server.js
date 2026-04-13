@@ -15,7 +15,7 @@ const server = http.createServer(app);
 // CORS for frontend (update after deployment)
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://your-frontend-url.vercel.app"
+  "https://ghostedchat.vercel.app/"
 ];
 
 // Socket.IO setup
