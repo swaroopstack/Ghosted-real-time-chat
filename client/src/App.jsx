@@ -5,6 +5,7 @@ const socket = io("http://localhost:5000");
 
 function App() {
   const [roomId, setRoomId] = useState("");
+  const [joinInput, setJoinInput] = useState("");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
 
@@ -13,12 +14,21 @@ function App() {
       method: "POST"
     });
     const data = await res.json();
-    setRoomId(data.roomId);
 
+    setRoomId(data.roomId);
     socket.emit("join-room", data.roomId);
   };
 
+  const joinRoom = () => {
+    if (!joinInput) return;
+
+    setRoomId(joinInput);
+    socket.emit("join-room", joinInput);
+  };
+
   const sendMessage = () => {
+    if (!input) return;
+
     socket.emit("send-message", {
       roomId,
       message: input
@@ -50,14 +60,30 @@ function App() {
       <h1>Ghosted</h1>
 
       {!roomId && (
-        <button onClick={createRoom}>Create Room</button>
+        <>
+          <button onClick={createRoom}>Create Room</button>
+
+          <div>
+            <input
+              placeholder="Enter Room ID"
+              value={joinInput}
+              onChange={(e) => setJoinInput(e.target.value)}
+            />
+            <button onClick={joinRoom}>Join Room</button>
+          </div>
+        </>
       )}
 
       {roomId && (
         <>
           <h3>Room: {roomId}</h3>
 
-          <div style={{ border: "1px solid black", padding: "10px", height: "200px", overflowY: "scroll" }}>
+          <div style={{
+            border: "1px solid black",
+            padding: "10px",
+            height: "200px",
+            overflowY: "scroll"
+          }}>
             {messages.map((msg, i) => (
               <p key={i}>{msg}</p>
             ))}
