@@ -3,9 +3,10 @@ export const setupSocket = (io) => {
         console.log("User connected:", socket.id);
 
         // join room
-        socket.on("join-room", (roomId) => {
+        socket.on("join-room", ({ roomId, username }) => {
             socket.join(roomId);
-            console.log(`User ${socket.id} joined room ${roomId}`);
+
+            socket.to(roomId).emit("user-joined", `${username} joined the room`);
         });
 
         // send message
@@ -21,8 +22,14 @@ export const setupSocket = (io) => {
             io.to(roomId).emit("room-destroyed");
         });
 
-        socket.on("disconnect", () => {
-            console.log("User disconnected:", socket.id);
+        socket.on("disconnecting", () => {
+            const rooms = Array.from(socket.rooms);
+
+            rooms.forEach((room) => {
+                if (room !== socket.id) {
+                    socket.to(room).emit("user-left", "A user left the room");
+                }
+            });
         });
     });
 };

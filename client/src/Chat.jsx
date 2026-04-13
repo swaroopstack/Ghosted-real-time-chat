@@ -5,131 +5,161 @@ import { io } from "socket.io-client";
 const socket = io("http://localhost:5000");
 
 function Chat() {
-    const { roomId } = useParams();
+  const { roomId } = useParams();
 
-    const [username, setUsername] = useState("");
-    const [nameSet, setNameSet] = useState(false);
+  const [username, setUsername] = useState("");
+  const [nameSet, setNameSet] = useState(false);
 
-    const [input, setInput] = useState("");
-    const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([]);
 
-    const chatRef = useRef(null);
+  const chatRef = useRef(null);
 
-    useEffect(() => {
-        if (!nameSet) return;
+  useEffect(() => {
+    if (!nameSet) return;
 
-        socket.emit("join-room", roomId);
+    socket.emit("join-room", { roomId, username });
 
-        socket.on("receive-message", (data) => {
-            console.log("RECEIVED:", data);
-            setMessages((prev) => [...prev, data]);
-        });
+    socket.on("receive-message", (data) => {
+      setMessages((prev) => [...prev, data]);
+    });
 
-        socket.on("room-destroyed", () => {
-            alert("Room destroyed");
-            window.location.href = "/";
-        });
+    socket.on("user-joined", (msg) => {
+      setMessages((prev) => [
+        ...prev,
+        { system: true, message: msg }
+      ]);
+    });
 
-        return () => {
-            socket.off("receive-message");
-            socket.off("room-destroyed");
-        };
-    }, [roomId, nameSet]);
+    socket.on("user-left", (msg) => {
+      setMessages((prev) => [
+        ...prev,
+        { system: true, message: msg }
+      ]);
+    });
 
-    // auto scroll
-    useEffect(() => {
-        chatRef.current?.scrollTo({
-            top: chatRef.current.scrollHeight,
-            behavior: "smooth"
-        });
-    }, [messages]);
+    socket.on("room-destroyed", () => {
+      alert("Room destroyed");
+      window.location.href = "/";
+    });
 
-    const sendMessage = () => {
-        if (!input) return;
+    return () => {
+      socket.off("receive-message");
+      socket.off("user-joined");
+      socket.off("user-left");
+      socket.off("room-destroyed");
+    };
+  }, [roomId, nameSet, username]);
 
-        const messageData = {
-            roomId,
-            message: input,
-            username
-        };
+  // auto scroll
+  useEffect(() => {
+    chatRef.current?.scrollTo({
+      top: chatRef.current.scrollHeight,
+      behavior: "smooth"
+    });
+  }, [messages]);
 
-        socket.emit("send-message", messageData);
+  const sendMessage = () => {
+    if (!input) return;
 
-        setMessages((prev) => [...prev, messageData]);
-        setInput("");
+    const messageData = {
+      roomId,
+      message: input,
+      username
     };
 
-    const copyLink = () => {
-        navigator.clipboard.writeText(window.location.href);
-        alert("Room link copied!");
-    };
+    socket.emit("send-message", messageData);
 
-    // STEP 1: ask username
-    if (!nameSet) {
-        return (
-            <div style={{ textAlign: "center", marginTop: "100px" }}>
-                <h2>Enter Username</h2>
-                <input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                />
-                <br /><br />
-                <button onClick={() => setNameSet(true)}>Join Chat</button>
-            </div>
-        );
-    }
+    setMessages((prev) => [...prev, messageData]);
+    setInput("");
+  };
 
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    alert("Room link copied!");
+  };
+
+  // username input screen
+  if (!nameSet) {
     return (
-        <div style={{
-            maxWidth: "500px",
-            margin: "auto",
-            padding: "20px",
-            textAlign: "center"
-        }}>
-            <h2>Room: {roomId}</h2>
-
-            <button onClick={copyLink}>Copy Room Link</button>
-
-            <div
-                ref={chatRef}
-                style={{
-                    border: "1px solid black",
-                    padding: "10px",
-                    height: "300px",
-                    overflowY: "scroll",
-                    marginTop: "10px",
-                    textAlign: "left"
-                }}
-            >
-                {messages.map((msg, i) => (
-                    <p key={i}>
-                        <strong>{msg.username}: </strong>{msg.message}
-                    </p>
-                ))}
-            </div>
-
-            <div style={{ marginTop: "10px" }}>
-                <input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    style={{ padding: "8px", width: "70%" }}
-                />
-                <button onClick={sendMessage}>Send</button>
-            </div>
-
-            <button
-                style={{
-                    background: "red",
-                    color: "white",
-                    marginTop: "10px",
-                    padding: "8px"
-                }}
-                onClick={() => socket.emit("destroy-room", roomId)}
-            >
-                Destroy Room
-            </button>
-        </div>
+      <div style={{ textAlign: "center", marginTop: "100px" }}>
+        <h2>Enter Username</h2>
+        <input
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+        <br /><br />
+        <button
+          onClick={() => {
+            if (!username) return;
+            setNameSet(true);
+          }}
+        >
+          Join Chat
+        </button>
+      </div>
     );
+  }
+
+  return (
+    <div
+      style={{
+        maxWidth: "500px",
+        margin: "auto",
+        padding: "20px",
+        textAlign: "center"
+      }}
+    >
+      <h2>Room: {roomId}</h2>
+
+      <button onClick={copyLink}>Copy Room Link</button>
+
+      <div
+        ref={chatRef}
+        style={{
+          border: "1px solid black",
+          padding: "10px",
+          height: "300px",
+          overflowY: "scroll",
+          marginTop: "10px",
+          textAlign: "left"
+        }}
+      >
+        {messages.map((msg, i) => (
+          <p key={i}>
+            {msg.system ? (
+              <em>{msg.message}</em>
+            ) : (
+              <>
+                <strong>{msg.username}: </strong>{msg.message}
+              </>
+            )}
+          </p>
+        ))}
+      </div>
+
+      <div style={{ marginTop: "10px" }}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          style={{ padding: "8px", width: "70%" }}
+        />
+        <button onClick={sendMessage}>Send</button>
+      </div>
+
+      <button
+        style={{
+          background: "red",
+          color: "white",
+          marginTop: "10px",
+          padding: "8px"
+        }}
+        onClick={() => socket.emit("destroy-room", roomId)}
+      >
+        Destroy Room
+      </button>
+    </div>
+  );
 }
 
 export default Chat;
