@@ -107,6 +107,7 @@ function Chat() {
     });
 
     socket.on("room-destroyed", () => {
+      destroySoundRef.current.play().catch(() => {});
       showToast("Room destroyed. Redirecting...", "error");
       setTimeout(() => { window.location.href = "/"; }, 2000);
     });
@@ -143,7 +144,6 @@ function Chat() {
   };
 
   const destroyRoom = () => {
-    destroySoundRef.current.play().catch(() => {});
     socket.emit("destroy-room", roomId);
   };
 
