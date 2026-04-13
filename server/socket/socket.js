@@ -1,35 +1,50 @@
 export const setupSocket = (io) => {
-    io.on("connection", (socket) => {
-        console.log("User connected:", socket.id);
+  const users = {}; // socket.id → { username, roomId }
 
-        // join room
-        socket.on("join-room", ({ roomId, username }) => {
-            socket.join(roomId);
+  io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
 
-            socket.to(roomId).emit("user-joined", `${username} joined the room`);
-        });
+    // JOIN ROOM
+    socket.on("join-room", ({ roomId, username }) => {
+      socket.join(roomId);
 
-        // send message
-        socket.on("send-message", ({ roomId, message, username }) => {
-            socket.to(roomId).emit("receive-message", {
-                message,
-                username
-            });
-        });
+      // store user info
+      users[socket.id] = { username, roomId };
 
-        // destroy room
-        socket.on("destroy-room", (roomId) => {
-            io.to(roomId).emit("room-destroyed");
-        });
-
-        socket.on("disconnecting", () => {
-            const rooms = Array.from(socket.rooms);
-
-            rooms.forEach((room) => {
-                if (room !== socket.id) {
-                    socket.to(room).emit("user-left", "A user left the room");
-                }
-            });
-        });
+      // notify others
+      socket.to(roomId).emit("user-joined", `${username} joined the room`);
     });
+
+    // SEND MESSAGE
+    socket.on("send-message", ({ roomId, message, username }) => {
+      if (!username) return;
+
+      const msgData = {
+        message,
+        username
+      };
+
+      socket.to(roomId).emit("receive-message", msgData);
+    });
+
+    // DESTROY ROOM
+    socket.on("destroy-room", (roomId) => {
+      io.to(roomId).emit("room-destroyed");
+    });
+
+    // DISCONNECT
+    socket.on("disconnect", () => {
+      const user = users[socket.id];
+
+      if (user) {
+        const { username, roomId } = user;
+
+        socket.to(roomId).emit("user-left", `${username} left the room`);
+
+        delete users[socket.id]; // cleanup
+      }
+
+      console.log("User disconnected:", socket.id);
+    });
+  });
 };
