@@ -22,7 +22,8 @@ const allowedOrigins = [
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
@@ -30,7 +31,8 @@ setupSocket(io);
 
 // Middleware
 app.use(cors({
-  origin: allowedOrigins
+  origin: allowedOrigins,
+  credentials: true
 }));
 app.use(express.json());
 
