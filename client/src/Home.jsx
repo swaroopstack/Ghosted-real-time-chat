@@ -99,7 +99,7 @@ export default function Home() {
   const navigate = useNavigate();
 
   const createRoom = async () => {
-    const res = await fetch("http://localhost:5000/api/create-room", { method: "POST" });
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/create-room`, { method: "POST" });
     const data = await res.json();
     navigate(`/room/${data.roomId}`);
   };
