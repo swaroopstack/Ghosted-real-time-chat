@@ -9,34 +9,35 @@ function Chat() {
 
   const [username, setUsername] = useState("");
   const [nameSet, setNameSet] = useState(false);
-
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
 
-  const chatRef = useRef(null);
+  const bottomRef = useRef(null);
 
-  // JOIN + LISTENERS
+  // SOCKET LOGIC
   useEffect(() => {
     if (!nameSet) return;
 
     socket.emit("join-room", { roomId, username });
 
     socket.on("receive-message", (data) => {
-      setMessages((prev) => [...prev, data]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "received",
+          username: data.username,
+          text: data.message,
+          time: data.time,
+        },
+      ]);
     });
 
     socket.on("user-joined", (msg) => {
-      setMessages((prev) => [
-        ...prev,
-        { system: true, message: msg }
-      ]);
+      setMessages((prev) => [...prev, { type: "system", text: msg }]);
     });
 
     socket.on("user-left", (msg) => {
-      setMessages((prev) => [
-        ...prev,
-        { system: true, message: msg }
-      ]);
+      setMessages((prev) => [...prev, { type: "system", text: msg }]);
     });
 
     socket.on("room-destroyed", () => {
@@ -52,129 +53,135 @@ function Chat() {
     };
   }, [roomId, nameSet, username]);
 
-  // CLEAR MESSAGES ON ROOM CHANGE
-  useEffect(() => {
-    setMessages([]);
-  }, [roomId]);
-
   // AUTO SCROLL
   useEffect(() => {
-    chatRef.current?.scrollTo({
-      top: chatRef.current.scrollHeight,
-      behavior: "smooth"
-    });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendMessage = () => {
     if (!input.trim()) return;
 
+    const time = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
     const messageData = {
       roomId,
       message: input,
       username,
-      time: new Date().toLocaleTimeString()
+      time,
     };
 
     socket.emit("send-message", messageData);
 
-    setMessages((prev) => [...prev, messageData]);
+    setMessages((prev) => [
+      ...prev,
+      { type: "sent", text: input, time },
+    ]);
+
     setInput("");
   };
 
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert("Room link copied!");
+    alert("Link copied");
   };
 
   // USERNAME SCREEN
   if (!nameSet) {
     return (
-      <div style={{ textAlign: "center", marginTop: "100px" }}>
-        <h2>Enter Username</h2>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <br /><br />
-        <button
-          onClick={() => {
-            if (!username.trim()) return;
-            setNameSet(true);
-          }}
-        >
-          Join Chat
-        </button>
+      <div className="h-screen flex items-center justify-center bg-black text-white">
+        <div className="bg-gray-900 p-6 rounded-xl text-center">
+          <h2 className="mb-4">Enter Username</h2>
+          <input
+            className="px-4 py-2 rounded text-black"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <br /><br />
+          <button
+            onClick={() => {
+              if (!username.trim()) return;
+              setNameSet(true);
+            }}
+            className="bg-green-600 px-4 py-2 rounded"
+          >
+            Join Chat
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        maxWidth: "500px",
-        margin: "auto",
-        padding: "20px",
-        textAlign: "center",
-        background: "#f5f5f5",
-        borderRadius: "10px"
-      }}
-    >
-      <h2>Room: {roomId}</h2>
+    <div className="h-screen bg-black text-white flex flex-col">
 
-      <button onClick={copyLink}>Copy Room Link</button>
+      {/* HEADER */}
+      <div className="flex justify-between items-center p-4 border-b border-gray-700">
+        <div>
+          <p className="text-xs text-gray-400">ROOM ID</p>
+          <p className="text-green-400 font-mono">{roomId}</p>
+        </div>
 
-      <div
-        ref={chatRef}
-        style={{
-          border: "1px solid #ccc",
-          padding: "10px",
-          height: "300px",
-          overflowY: "scroll",
-          marginTop: "10px",
-          textAlign: "left",
-          background: "white",
-          borderRadius: "8px"
-        }}
-      >
-        {messages.map((msg, i) => (
-          <p key={i}>
-            {msg.system ? (
-              <em>{msg.message}</em>
-            ) : (
-              <>
-                <strong>{msg.username}</strong>: {msg.message}
-                <span style={{ fontSize: "10px", marginLeft: "6px" }}>
-                  {msg.time}
-                </span>
-              </>
-            )}
-          </p>
-        ))}
+        <div className="flex gap-2">
+          <button onClick={copyLink} className="bg-gray-800 px-3 py-1 rounded">
+            Copy Link
+          </button>
+          <button
+            onClick={() => socket.emit("destroy-room", roomId)}
+            className="bg-red-600 px-3 py-1 rounded"
+          >
+            Destroy
+          </button>
+        </div>
       </div>
 
-      <div style={{ marginTop: "10px" }}>
+      {/* MESSAGES */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.map((msg, i) => {
+          if (msg.type === "system") {
+            return (
+              <p key={i} className="text-center text-gray-400 italic text-sm">
+                {msg.text}
+              </p>
+            );
+          }
+
+          const isSent = msg.type === "sent";
+
+          return (
+            <div
+              key={i}
+              className={`flex ${isSent ? "justify-end" : "justify-start"}`}
+            >
+              <div className={`max-w-xs p-3 rounded-xl ${isSent ? "bg-green-600" : "bg-gray-800"}`}>
+                {!isSent && (
+                  <p className="text-xs text-green-400">{msg.username}</p>
+                )}
+                <p>{msg.text}</p>
+                <p className="text-[10px] text-gray-400 text-right">{msg.time}</p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef}></div>
+      </div>
+
+      {/* INPUT */}
+      <div className="p-4 border-t border-gray-700 flex gap-2">
         <input
+          className="flex-1 bg-gray-800 px-4 py-2 rounded-full"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") sendMessage();
-          }}
-          style={{ padding: "8px", width: "70%" }}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder="Type message..."
         />
-        <button onClick={sendMessage}>Send</button>
+        <button onClick={sendMessage} className="bg-gray-700 px-4 rounded-full">
+          ↑
+        </button>
       </div>
 
-      <button
-        style={{
-          background: "red",
-          color: "white",
-          marginTop: "10px",
-          padding: "8px"
-        }}
-        onClick={() => socket.emit("destroy-room", roomId)}
-      >
-        Destroy Room
-      </button>
     </div>
   );
 }
