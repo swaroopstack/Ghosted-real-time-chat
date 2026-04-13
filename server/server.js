@@ -12,16 +12,26 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO setup (we’ll use later)
+// CORS for frontend (update after deployment)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://your-frontend-url.vercel.app"
+];
+
+// Socket.IO setup
 const io = new Server(server, {
   cors: {
-    origin: "*"
+    origin: allowedOrigins,
+    methods: ["GET", "POST"]
   }
 });
+
 setupSocket(io);
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: allowedOrigins
+}));
 app.use(express.json());
 
 // Routes
@@ -37,7 +47,9 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.log(err));
 
-// Start server
-server.listen(5000, () => {
-  console.log("Server running on port 5000");
+// IMPORTANT: Use dynamic PORT for deployment
+const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
