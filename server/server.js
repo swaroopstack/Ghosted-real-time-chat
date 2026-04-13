@@ -4,7 +4,7 @@ import { Server } from "socket.io";
 import cors from "cors";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-
+import { setupSocket } from "./socket/socket.js";
 import roomRoutes from "./routes/roomRoutes.js";
 
 dotenv.config();
@@ -18,6 +18,7 @@ const io = new Server(server, {
     origin: "*"
   }
 });
+setupSocket(io);
 
 // Middleware
 app.use(cors());
