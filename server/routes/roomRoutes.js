@@ -18,7 +18,8 @@ router.post("/create-room", async (req, res) => {
 
     res.json({ roomId });
   } catch (error) {
-    res.status(500).json({ error: "Error creating room" });
+    console.log("CREATE ROOM ERROR:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
