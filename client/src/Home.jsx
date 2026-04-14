@@ -92,6 +92,7 @@ const Particle = ({ style }) => (
 export default function Home() {
   const [glitching, setGlitching] = useState(false);
   const [typed, setTyped] = useState("");
+  const [starCount, setStarCount] = useState("51");
   const fullText = "you were never here.";
   const intervalRef = useRef(null);
   const glitchRef = useRef(null);
@@ -128,6 +129,24 @@ export default function Home() {
     };
     glitchRef.current = setInterval(trigger, 4500);
     return () => clearInterval(glitchRef.current);
+  }, []);
+
+  // GitHub stars
+  useEffect(() => {
+    const fetchStars = async () => {
+      try {
+        const response = await fetch("https://api.github.com/repos/swaroopstack/Ghosted-real-time-chat");
+        if (!response.ok) return;
+        const repo = await response.json();
+        if (typeof repo?.stargazers_count === "number") {
+          setStarCount(String(repo.stargazers_count));
+        }
+      } catch {
+        // Keep fallback value if request fails.
+      }
+    };
+
+    fetchStars();
   }, []);
 
   const particles = Array.from({ length: 28 }, (_, i) => ({
@@ -334,7 +353,10 @@ export default function Home() {
           }}>
             <Button primary label="CREATE ROOM" onClick={createRoom} />
             <Button label="JOIN ROOM" onClick={joinRoom} />
-            <Button icon label="⬡  GITHUB" onClick={() => window.open("https://github.com/swaroopstack/Ghosted-real-time-chat", "_blank")} />
+            <GitHubStarButton
+              stars={starCount}
+              onClick={() => window.open("https://github.com/swaroopstack/Ghosted-real-time-chat", "_blank")}
+            />
           </div>
 
         </div>
@@ -420,5 +442,57 @@ function Button({ label, primary, icon, onClick }) {
     >
       {label}
     </button>
+  );
+}
+
+function GitHubStarButton({ stars, onClick }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "12px 18px",
+        background: hovered ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.35)",
+        border: "1px solid",
+        borderColor: hovered ? "rgba(255,220,180,0.55)" : "rgba(255,220,180,0.22)",
+        borderRadius: "4px",
+        color: "#f6d3ad",
+        fontFamily: "'DM Mono', monospace",
+        fontSize: "31px",
+        lineHeight: 1,
+        cursor: "pointer",
+        transition: "all 0.2s ease",
+        transform: hovered ? "translateY(-2px)" : "none",
+        boxShadow: hovered ? "0 0 18px rgba(255,200,140,0.2)" : "none",
+      }}
+      aria-label={`GitHub repository with ${stars} stars`}
+      title="View on GitHub"
+    >
+      <GitHubIcon />
+      <span style={{ fontWeight: 700, fontSize: "31px" }}>{stars}</span>
+      <StarIcon />
+    </button>
+  );
+}
+
+function GitHubIcon() {
+  return (
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.2c-3.34.72-4.04-1.6-4.04-1.6-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.74.08-.74 1.2.08 1.84 1.25 1.84 1.25 1.08 1.83 2.82 1.3 3.5.99.1-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.94 0-1.31.47-2.39 1.24-3.23-.12-.3-.54-1.52.12-3.16 0 0 1.01-.33 3.3 1.23a11.4 11.4 0 0 1 6 0c2.28-1.56 3.3-1.23 3.3-1.23.65 1.64.24 2.86.12 3.16.78.84 1.24 1.92 1.24 3.23 0 4.62-2.81 5.64-5.48 5.94.43.37.82 1.09.82 2.21v3.27c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
+    </svg>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+      <path d="m12 3 2.8 5.67 6.26.91-4.53 4.41 1.07 6.23L12 17.27 6.4 20.22l1.07-6.23L2.94 9.58l6.26-.91L12 3Z" />
+    </svg>
   );
 }
