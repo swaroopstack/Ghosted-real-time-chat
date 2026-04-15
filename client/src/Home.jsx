@@ -93,6 +93,9 @@ export default function Home() {
   const [glitching, setGlitching] = useState(false);
   const [typed, setTyped] = useState("");
   const [starCount, setStarCount] = useState("51");
+  const [showJoinPanel, setShowJoinPanel] = useState(false);
+  const [joinRoomId, setJoinRoomId] = useState("");
+  const [joinUsername, setJoinUsername] = useState("");
   const fullText = "you were never here.";
   const intervalRef = useRef(null);
   const glitchRef = useRef(null);
@@ -105,9 +108,23 @@ export default function Home() {
     navigate(`/room/${data.roomId}`);
   };
 
+  const openJoinPanel = () => {
+    setShowJoinPanel(true);
+  };
+
+  const closeJoinPanel = () => {
+    setShowJoinPanel(false);
+    setJoinRoomId("");
+    setJoinUsername("");
+  };
+
   const joinRoom = () => {
-    const roomId = prompt("Enter Room ID");
-    if (roomId) navigate(`/room/${roomId}`);
+    const trimmedRoomId = joinRoomId.trim();
+    const trimmedUsername = joinUsername.trim();
+
+    if (!trimmedRoomId || !trimmedUsername) return;
+    navigate(`/room/${trimmedRoomId}`, { state: { username: trimmedUsername } });
+    closeJoinPanel();
   };
 
   // Typewriter effect
@@ -352,7 +369,7 @@ export default function Home() {
             animation: "fadeUp 0.9s 0.55s both",
           }}>
             <Button primary label="CREATE ROOM" onClick={createRoom} />
-            <Button label="JOIN ROOM" onClick={joinRoom} />
+            <Button label="JOIN ROOM" onClick={openJoinPanel} />
             <GitHubStarButton
               stars={starCount}
               onClick={() => window.open("https://github.com/swaroopstack/Ghosted-real-time-chat", "_blank")}
@@ -377,9 +394,169 @@ export default function Home() {
         </div>
 
       </div>
+
+      {showJoinPanel && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(3, 3, 8, 0.7)",
+          backdropFilter: "blur(8px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9,
+          padding: "20px",
+        }}>
+          <div style={{
+            width: "100%",
+            maxWidth: "420px",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: "14px",
+            padding: "26px",
+            boxShadow: "0 0 40px rgba(130,120,255,0.16)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+            animation: "fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <div>
+                <h3 style={{
+                  margin: 0,
+                  fontFamily: "'Syne', sans-serif",
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  fontSize: "16px",
+                  color: "#f1f1ff",
+                }}>
+                  JOIN ROOM
+                </h3>
+                <p style={{
+                  margin: "6px 0 0 0",
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: "11px",
+                  letterSpacing: "0.08em",
+                  color: "rgba(185, 182, 235, 0.65)",
+                }}>
+                  Enter room ID and alias
+                </p>
+              </div>
+              <button
+                onClick={closeJoinPanel}
+                aria-label="Close join room panel"
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "transparent",
+                  color: "rgba(230,230,250,0.8)",
+                  borderRadius: "8px",
+                  width: "34px",
+                  height: "34px",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <label style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: "10px",
+                letterSpacing: "0.2em",
+                color: "rgba(200,200,230,0.48)",
+              }}>
+                ROOM ID
+              </label>
+              <input
+                autoFocus
+                value={joinRoomId}
+                onChange={(e) => setJoinRoomId(e.target.value)}
+                placeholder="e.g. 9f2a31cd"
+                style={joinInputStyle}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <label style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: "10px",
+                letterSpacing: "0.2em",
+                color: "rgba(200,200,230,0.48)",
+              }}>
+                USERNAME
+              </label>
+              <input
+                value={joinUsername}
+                onChange={(e) => setJoinUsername(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && joinRoom()}
+                placeholder="anonymous_ghost"
+                style={joinInputStyle}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
+              <button
+                onClick={closeJoinPanel}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "transparent",
+                  color: "rgba(220,218,255,0.8)",
+                  fontFamily: "'Syne', sans-serif",
+                  fontSize: "11px",
+                  letterSpacing: "0.14em",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={joinRoom}
+                disabled={!joinRoomId.trim() || !joinUsername.trim()}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #6660dd, #9088ee)",
+                  color: "#fff",
+                  fontFamily: "'Syne', sans-serif",
+                  fontSize: "11px",
+                  letterSpacing: "0.14em",
+                  fontWeight: 700,
+                  cursor: !joinRoomId.trim() || !joinUsername.trim() ? "not-allowed" : "pointer",
+                  opacity: !joinRoomId.trim() || !joinUsername.trim() ? 0.5 : 1,
+                  boxShadow: "0 0 20px rgba(136,128,255,0.25)",
+                }}
+              >
+                JOIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+
+const joinInputStyle = {
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: "8px",
+  padding: "12px 14px",
+  color: "#e8e8f0",
+  fontFamily: "'DM Mono', monospace",
+  fontSize: "13px",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+};
 
 function Button({ label, primary, icon, onClick }) {
   const [hovered, setHovered] = useState(false);
