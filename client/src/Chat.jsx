@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
 const socket = io(import.meta.env.VITE_BACKEND_URL);
@@ -43,9 +43,11 @@ function Toast({ toasts }) {
 // ─── Main Chat Component ─────────────────────────────────────────────────────
 function Chat() {
   const { roomId } = useParams();
+  const location = useLocation();
+  const prefixedUsername = location.state?.username?.trim() || "";
 
-  const [username, setUsername] = useState("");
-  const [nameSet, setNameSet] = useState(false);
+  const [username, setUsername] = useState(prefixedUsername);
+  const [nameSet, setNameSet] = useState(Boolean(prefixedUsername));
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [toasts, setToasts] = useState([]);
