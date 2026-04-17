@@ -96,6 +96,7 @@ export default function Home() {
   const [showJoinPanel, setShowJoinPanel] = useState(false);
   const [joinRoomId, setJoinRoomId] = useState("");
   const [joinUsername, setJoinUsername] = useState("");
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const fullText = "you were never here.";
   const intervalRef = useRef(null);
   const glitchRef = useRef(null);
@@ -166,6 +167,12 @@ export default function Home() {
     fetchStars();
   }, []);
 
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const particles = Array.from({ length: 28 }, (_, i) => ({
     size: `${Math.random() * 4 + 2}px`,
     color: i % 3 === 0 ? "rgba(160,160,255,0.5)" : i % 3 === 1 ? "rgba(255,255,255,0.3)" : "rgba(120,200,255,0.4)",
@@ -190,6 +197,7 @@ export default function Home() {
         overflow: "hidden",
         fontFamily: "'Syne', sans-serif",
         color: "#e8e8f0",
+        padding: isMobile ? "24px 12px 72px" : "0",
       }}>
 
         {/* Noise overlay */}
@@ -230,7 +238,7 @@ export default function Home() {
         {/* Glow blob */}
         <div style={{
           position: "absolute",
-          width: "520px", height: "320px",
+          width: isMobile ? "360px" : "520px", height: isMobile ? "220px" : "320px",
           borderRadius: "50%",
           background: "radial-gradient(ellipse, rgba(120,100,255,0.08) 0%, transparent 70%)",
           top: "30%", left: "50%", transform: "translate(-50%, -50%)",
@@ -257,7 +265,7 @@ export default function Home() {
             letterSpacing: "0.18em",
             color: "rgba(180,180,255,0.7)",
             fontFamily: "'DM Mono', monospace",
-            marginBottom: "38px",
+            marginBottom: isMobile ? "24px" : "38px",
             animation: "fadeUp 0.9s 0.1s both",
           }}>
             <span style={{
@@ -323,7 +331,9 @@ export default function Home() {
             letterSpacing: "0.28em",
             color: "rgba(200,200,230,0.45)",
             textTransform: "uppercase",
-            marginBottom: "36px",
+            marginBottom: isMobile ? "26px" : "36px",
+            flexWrap: "wrap",
+            justifyContent: "center",
             animation: "fadeUp 0.9s 0.25s both",
           }}>
             <span>VANISHES</span>
@@ -341,6 +351,7 @@ export default function Home() {
             color: "rgba(200,200,220,0.5)",
             textAlign: "center",
             maxWidth: "440px",
+            width: isMobile ? "92vw" : "auto",
             lineHeight: 1.7,
             margin: "0 0 12px 0",
             animation: "fadeUp 0.9s 0.35s both",
@@ -355,7 +366,7 @@ export default function Home() {
             fontSize: "13px",
             color: "rgba(140,135,255,0.7)",
             letterSpacing: "0.06em",
-            marginBottom: "52px",
+            marginBottom: isMobile ? "32px" : "52px",
             height: "20px",
             animation: "fadeUp 0.9s 0.45s both",
           }}>
@@ -365,14 +376,15 @@ export default function Home() {
 
           {/* Buttons */}
           <div style={{
-            display: "flex", gap: "16px", flexWrap: "wrap", justifyContent: "center",
+            display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center", width: isMobile ? "100%" : "auto",
             animation: "fadeUp 0.9s 0.55s both",
           }}>
-            <Button primary label="CREATE ROOM" onClick={createRoom} />
-            <Button label="JOIN ROOM" onClick={openJoinPanel} />
+            <Button primary label="CREATE ROOM" onClick={createRoom} isMobile={isMobile} />
+            <Button label="JOIN ROOM" onClick={openJoinPanel} isMobile={isMobile} />
             <GitHubStarButton
               stars={starCount}
               onClick={() => window.open("https://github.com/swaroopstack/Ghosted-real-time-chat", "_blank")}
+              isMobile={isMobile}
             />
           </div>
 
@@ -384,9 +396,10 @@ export default function Home() {
           fontFamily: "'DM Mono', monospace",
           fontSize: "10px", letterSpacing: "0.22em",
           color: "rgba(255,255,255,0.14)",
-          display: "flex", alignItems: "center", gap: "14px",
+          alignItems: "center", gap: "14px",
           zIndex: 2,
           animation: "fadeUp 1s 0.8s both",
+          display: isMobile ? "none" : "flex",
         }}>
           <span style={{ width: "32px", height: "1px", background: "rgba(255,255,255,0.15)" }} />
           SCROLL TO BEGIN
@@ -558,12 +571,12 @@ const joinInputStyle = {
   boxSizing: "border-box",
 };
 
-function Button({ label, primary, icon, onClick }) {
+function Button({ label, primary, icon, onClick, isMobile }) {
   const [hovered, setHovered] = useState(false);
 
   const base = {
     position: "relative",
-    padding: "14px 32px",
+    padding: isMobile ? "13px 18px" : "14px 32px",
     fontSize: "12px",
     fontFamily: "'Syne', sans-serif",
     fontWeight: 700,
@@ -574,6 +587,8 @@ function Button({ label, primary, icon, onClick }) {
     transition: "all 0.25s ease",
     overflow: "hidden",
     display: "flex", alignItems: "center", gap: "8px",
+    width: isMobile ? "100%" : "auto",
+    justifyContent: "center",
   };
 
   if (primary) {
@@ -622,7 +637,7 @@ function Button({ label, primary, icon, onClick }) {
   );
 }
 
-function GitHubStarButton({ stars, onClick }) {
+function GitHubStarButton({ stars, onClick, isMobile }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -641,7 +656,7 @@ function GitHubStarButton({ stars, onClick }) {
         borderRadius: "4px",
         color: "#f6d3ad",
         fontFamily: "'DM Mono', monospace",
-        fontSize: "31px",
+        fontSize: isMobile ? "24px" : "31px",
         lineHeight: 1,
         cursor: "pointer",
         transition: "all 0.2s ease",
@@ -652,7 +667,7 @@ function GitHubStarButton({ stars, onClick }) {
       title="View on GitHub"
     >
       <GitHubIcon />
-      <span style={{ fontWeight: 700, fontSize: "31px" }}>{stars}</span>
+      <span style={{ fontWeight: 700, fontSize: isMobile ? "24px" : "31px" }}>{stars}</span>
       <StarIcon />
     </button>
   );
