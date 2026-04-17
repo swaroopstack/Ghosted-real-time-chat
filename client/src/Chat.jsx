@@ -5,10 +5,10 @@ import { io } from "socket.io-client";
 const socket = io(import.meta.env.VITE_BACKEND_URL);
 
 // ─── Toast Component ────────────────────────────────────────────────────────
-function Toast({ toasts }) {
+function Toast({ toasts, isMobile }) {
   return (
     <div style={{
-      position: "fixed", top: "20px", right: "20px",
+      position: "fixed", top: isMobile ? "12px" : "20px", right: isMobile ? "12px" : "20px", left: isMobile ? "12px" : "auto",
       zIndex: 9999, display: "flex", flexDirection: "column", gap: "10px",
       pointerEvents: "none",
     }}>
@@ -26,7 +26,7 @@ function Toast({ toasts }) {
           boxShadow: `0 0 20px ${t.type === "success" ? "rgba(124,245,160,0.1)" : t.type === "error" ? "rgba(255,80,100,0.1)" : "rgba(180,178,255,0.1)"}`,
           animation: "toastIn 0.3s cubic-bezier(0.22,1,0.36,1) both",
           letterSpacing: "0.05em",
-          minWidth: "220px",
+          minWidth: isMobile ? "0" : "220px",
         }}>
           <span style={{
             width: "7px", height: "7px", borderRadius: "50%", flexShrink: 0,
@@ -52,6 +52,7 @@ function Chat() {
   const [messages, setMessages] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
 
   const bottomRef = useRef(null);
   const destroySoundRef = useRef(new Audio("/sounds/destroy.mp3"));
@@ -127,6 +128,12 @@ function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const sendMessage = () => {
     if (!input.trim()) return;
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -159,22 +166,25 @@ function Chat() {
           background: "#07070d", fontFamily: "'Syne', sans-serif",
           backgroundImage: `linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)`,
           backgroundSize: "60px 60px",
+          padding: isMobile ? "16px" : "0",
         }}>
           <div style={{
             background: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(255,255,255,0.09)",
             borderRadius: "16px",
-            padding: "40px 48px",
+            padding: isMobile ? "30px 20px" : "40px 48px",
             display: "flex", flexDirection: "column", alignItems: "center", gap: "20px",
             backdropFilter: "blur(20px)",
             boxShadow: "0 0 60px rgba(120,100,255,0.08)",
             animation: "fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both",
-            minWidth: "340px",
+            minWidth: isMobile ? "0" : "340px",
+            maxWidth: "420px",
+            width: isMobile ? "100%" : "auto",
           }}>
             <div style={{ textAlign: "center" }}>
               <h1 style={{
                 fontFamily: "'Syne', sans-serif", fontWeight: 800,
-                fontSize: "28px", margin: "0 0 6px 0",
+                fontSize: isMobile ? "24px" : "28px", margin: "0 0 6px 0",
                 background: "linear-gradient(135deg, #ffffff 0%, #c0bfff 50%, #8880ff 100%)",
                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
               }}>ghosted</h1>
@@ -236,7 +246,7 @@ function Chat() {
   return (
     <>
       <style>{cssKeyframes}</style>
-      <Toast toasts={toasts} />
+      <Toast toasts={toasts} isMobile={isMobile} />
 
       <div style={{
         height: "100vh", display: "flex", flexDirection: "column",
@@ -256,15 +266,17 @@ function Chat() {
 
         {/* ── HEADER ── */}
         <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 20px", height: "56px", flexShrink: 0,
+          display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between",
+          flexDirection: isMobile ? "column" : "row",
+          gap: isMobile ? "10px" : "0",
+          padding: isMobile ? "10px 12px" : "0 20px", minHeight: "56px", flexShrink: 0,
           borderBottom: "1px solid rgba(255,255,255,0.07)",
           background: "rgba(7,7,13,0.85)", backdropFilter: "blur(16px)",
           position: "relative", zIndex: 10,
         }}>
           {/* Left: Room ID */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", letterSpacing: "0.2em", color: "rgba(200,200,230,0.35)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "8px" : "16px", flexWrap: "wrap" }}>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", letterSpacing: "0.2em", color: "rgba(200,200,230,0.35)", display: isMobile ? "none" : "inline" }}>
               ROOM ID
             </span>
             <div style={{
@@ -299,14 +311,14 @@ function Chat() {
           </div>
 
           {/* Right: Destroy */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", alignSelf: isMobile ? "flex-end" : "auto" }}>
             <button
               onClick={destroyRoom}
               style={{
                 display: "flex", alignItems: "center", gap: "8px",
                 background: "rgba(255,80,100,0.08)",
                 border: "1px solid rgba(255,80,100,0.3)",
-                borderRadius: "7px", padding: "7px 16px",
+                borderRadius: "7px", padding: isMobile ? "7px 12px" : "7px 16px",
                 fontFamily: "'Syne', sans-serif", fontWeight: 700,
                 fontSize: "11px", letterSpacing: "0.16em",
                 color: "#ff6680", cursor: "pointer",
@@ -330,7 +342,7 @@ function Chat() {
 
         {/* ── MESSAGES ── */}
         <div style={{
-          flex: 1, overflowY: "auto", padding: "24px 20px",
+          flex: 1, overflowY: "auto", padding: isMobile ? "16px 12px" : "24px 20px",
           display: "flex", flexDirection: "column", gap: "4px",
           position: "relative", zIndex: 1,
           scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent",
@@ -373,7 +385,7 @@ function Chat() {
                 animation: "fadeUp 0.25s cubic-bezier(0.22,1,0.36,1) both",
               }}>
                 <div style={{
-                  maxWidth: "62%",
+                  maxWidth: isMobile ? "82%" : "62%",
                   background: isSent
                     ? "linear-gradient(135deg, rgba(102,96,221,0.35), rgba(144,136,238,0.25))"
                     : "rgba(255,255,255,0.05)",
@@ -410,7 +422,7 @@ function Chat() {
 
         {/* ── INPUT ── */}
         <div style={{
-          padding: "16px 20px", flexShrink: 0,
+          padding: isMobile ? "12px" : "16px 20px", flexShrink: 0,
           borderTop: "1px solid rgba(255,255,255,0.07)",
           background: "rgba(7,7,13,0.85)", backdropFilter: "blur(16px)",
           position: "relative", zIndex: 10,
