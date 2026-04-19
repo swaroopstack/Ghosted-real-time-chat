@@ -1,5 +1,12 @@
 export const setupSocket = (io) => {
   const users = {}; // socket.id → { username, roomId }
+  const emitRoomParticipants = (roomId) => {
+    const participants = Object.values(users)
+      .filter((user) => user.roomId === roomId)
+      .map((user) => user.username);
+
+    io.to(roomId).emit("participants-updated", participants);
+  };
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id);
@@ -12,6 +19,7 @@ export const setupSocket = (io) => {
       users[socket.id] = { username, roomId };
 
       socket.to(roomId).emit("user-joined", `${username} joined the room`);
+      emitRoomParticipants(roomId);
     });
 
     // SEND MESSAGE (UPDATED WITH TIME)
@@ -42,6 +50,7 @@ export const setupSocket = (io) => {
         socket.to(roomId).emit("user-left", `${username} left the room`);
 
         delete users[socket.id];
+        emitRoomParticipants(roomId);
       }
 
       console.log("User disconnected:", socket.id);

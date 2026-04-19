@@ -50,6 +50,7 @@ function Chat() {
   const [nameSet, setNameSet] = useState(Boolean(prefixedUsername));
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState([]);
+  const [participants, setParticipants] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
@@ -109,6 +110,10 @@ function Chat() {
       showToast(msg, "info");
     });
 
+    socket.on("participants-updated", (users) => {
+      setParticipants(users);
+    });
+
     socket.on("room-destroyed", () => {
       destroySoundRef.current.play().catch(() => {});
       showToast("Room destroyed. Redirecting...", "error");
@@ -119,6 +124,7 @@ function Chat() {
       socket.off("receive-message");
       socket.off("user-joined");
       socket.off("user-left");
+      socket.off("participants-updated");
       socket.off("room-destroyed");
     };
   }, [roomId, nameSet, username]);
@@ -340,133 +346,196 @@ function Chat() {
           </div>
         </div>
 
-        {/* ── MESSAGES ── */}
         <div style={{
-          flex: 1, overflowY: "auto", padding: isMobile ? "16px 12px" : "24px 20px",
-          display: "flex", flexDirection: "column", gap: "4px",
-          position: "relative", zIndex: 1,
-          scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent",
+          flex: 1,
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          minHeight: 0,
+          position: "relative",
+          zIndex: 1,
         }}>
-          {messages.length === 0 && (
-            <div style={{
-              flex: 1, display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: "10px",
-              color: "rgba(200,200,230,0.2)",
+          {/* ── PARTICIPANTS ── */}
+          <aside style={{
+            width: isMobile ? "100%" : "240px",
+            minWidth: isMobile ? "auto" : "220px",
+            maxWidth: isMobile ? "100%" : "260px",
+            borderRight: isMobile ? "none" : "1px solid rgba(255,255,255,0.07)",
+            borderBottom: isMobile ? "1px solid rgba(255,255,255,0.07)" : "none",
+            padding: isMobile ? "12px" : "18px 14px",
+            background: "rgba(7,7,13,0.6)",
+            backdropFilter: "blur(10px)",
+            overflowY: "auto",
+            scrollbarWidth: "thin",
+            scrollbarColor: "rgba(255,255,255,0.08) transparent",
+          }}>
+            <p style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: "10px",
+              letterSpacing: "0.2em",
+              color: "rgba(200,200,230,0.4)",
+              margin: "0 0 12px 0",
             }}>
-              <span style={{ fontSize: "32px", opacity: 0.3 }}>👻</span>
-              <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "16px", margin: 0 }}>No messages yet</p>
-              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "12px", margin: 0, opacity: 0.7 }}>Start the conversation by sending a message below.</p>
+              JOINED ({participants.length})
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {participants.length === 0 ? (
+                <p style={{
+                  fontFamily: "'DM Mono', monospace",
+                  fontSize: "11px",
+                  color: "rgba(200,200,230,0.35)",
+                  margin: 0,
+                }}>
+                  Waiting for people...
+                </p>
+              ) : (
+                participants.map((person, idx) => (
+                  <div key={`${person}-${idx}`} style={{
+                    padding: "9px 10px",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    fontFamily: "'DM Mono', monospace",
+                    fontSize: "12px",
+                    color: person === username ? "#7cf5a0" : "rgba(220,220,245,0.85)",
+                    letterSpacing: "0.03em",
+                  }}>
+                    {person}{person === username ? " (you)" : ""}
+                  </div>
+                ))
+              )}
             </div>
-          )}
+          </aside>
 
-          {messages.map((msg, i) => {
-            if (msg.type === "system") {
-              return (
-                <div key={i} style={{
-                  display: "flex", alignItems: "center", gap: "12px",
-                  margin: "8px 0", justifyContent: "center",
-                }}>
-                  <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.05)", maxWidth: "80px" }} />
-                  <p style={{
-                    fontFamily: "'DM Mono', monospace", fontSize: "11px",
-                    color: "rgba(180,178,255,0.4)", margin: 0, letterSpacing: "0.06em",
-                  }}>{msg.text}</p>
-                  <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.05)", maxWidth: "80px" }} />
-                </div>
-              );
-            }
-
-            const isSent = msg.type === "sent";
-            return (
-              <div key={i} style={{
-                display: "flex",
-                justifyContent: isSent ? "flex-end" : "flex-start",
-                marginBottom: "6px",
-                animation: "fadeUp 0.25s cubic-bezier(0.22,1,0.36,1) both",
-              }}>
+          {/* ── CHAT COLUMN ── */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            {/* ── MESSAGES ── */}
+            <div style={{
+              flex: 1, overflowY: "auto", padding: isMobile ? "14px 12px" : "24px 20px",
+              display: "flex", flexDirection: "column", gap: "4px",
+              scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent",
+            }}>
+              {messages.length === 0 && (
                 <div style={{
-                  maxWidth: isMobile ? "82%" : "62%",
-                  background: isSent
-                    ? "linear-gradient(135deg, rgba(102,96,221,0.35), rgba(144,136,238,0.25))"
-                    : "rgba(255,255,255,0.05)",
-                  border: isSent
-                    ? "1px solid rgba(136,128,255,0.25)"
-                    : "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: isSent ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                  padding: "10px 14px",
-                  backdropFilter: "blur(8px)",
-                  boxShadow: isSent ? "0 0 20px rgba(100,90,200,0.1)" : "none",
+                  flex: 1, display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: "10px",
+                  color: "rgba(200,200,230,0.2)",
                 }}>
-                  {!isSent && (
-                    <p style={{
-                      fontFamily: "'DM Mono', monospace", fontSize: "10px",
-                      color: "#b0aaff", margin: "0 0 4px 0", letterSpacing: "0.08em",
-                    }}>{msg.username}</p>
-                  )}
-                  <p style={{
-                    fontFamily: "'Syne', sans-serif", fontSize: "14px",
-                    color: isSent ? "#e8e8f0" : "rgba(230,230,245,0.9)",
-                    margin: "0 0 4px 0", lineHeight: 1.5,
-                  }}>{msg.text}</p>
-                  <p style={{
-                    fontFamily: "'DM Mono', monospace", fontSize: "10px",
-                    color: "rgba(200,200,230,0.3)", margin: 0, textAlign: "right",
-                    letterSpacing: "0.04em",
-                  }}>{msg.time}</p>
+                  <span style={{ fontSize: "32px", opacity: 0.3 }}>👻</span>
+                  <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "16px", margin: 0 }}>No messages yet</p>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "12px", margin: 0, opacity: 0.7 }}>Start the conversation by sending a message below.</p>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={bottomRef} />
-        </div>
+              )}
 
-        {/* ── INPUT ── */}
-        <div style={{
-          padding: isMobile ? "12px" : "16px 20px", flexShrink: 0,
-          borderTop: "1px solid rgba(255,255,255,0.07)",
-          background: "rgba(7,7,13,0.85)", backdropFilter: "blur(16px)",
-          position: "relative", zIndex: 10,
-          display: "flex", alignItems: "center", gap: "12px",
-        }}>
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="Type message..."
-            style={{
-              flex: 1,
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.09)",
-              borderRadius: "12px", padding: "13px 20px",
-              color: "#e8e8f0", fontFamily: "'Syne', sans-serif", fontSize: "14px",
-              outline: "none", transition: "border-color 0.2s, box-shadow 0.2s",
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "rgba(136,128,255,0.4)";
-              e.target.style.boxShadow = "0 0 0 3px rgba(136,128,255,0.08)";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "rgba(255,255,255,0.09)";
-              e.target.style.boxShadow = "none";
-            }}
-          />
-          <button
-            onClick={sendMessage}
-            style={{
-              width: "46px", height: "46px", borderRadius: "12px",
-              background: input.trim()
-                ? "linear-gradient(135deg, #6660dd, #9088ee)"
-                : "rgba(255,255,255,0.05)",
-              border: input.trim() ? "none" : "1px solid rgba(255,255,255,0.09)",
-              color: input.trim() ? "#fff" : "rgba(255,255,255,0.25)",
-              fontSize: "18px", cursor: input.trim() ? "pointer" : "default",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.2s", flexShrink: 0,
-              boxShadow: input.trim() ? "0 0 20px rgba(100,90,200,0.3)" : "none",
-            }}
-          >
-            ↑
-          </button>
+              {messages.map((msg, i) => {
+                if (msg.type === "system") {
+                  return (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: "12px",
+                      margin: "8px 0", justifyContent: "center",
+                    }}>
+                      <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.05)", maxWidth: "80px" }} />
+                      <p style={{
+                        fontFamily: "'DM Mono', monospace", fontSize: "11px",
+                        color: "rgba(180,178,255,0.4)", margin: 0, letterSpacing: "0.06em",
+                      }}>{msg.text}</p>
+                      <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.05)", maxWidth: "80px" }} />
+                    </div>
+                  );
+                }
+
+                const isSent = msg.type === "sent";
+                return (
+                  <div key={i} style={{
+                    display: "flex",
+                    justifyContent: isSent ? "flex-end" : "flex-start",
+                    marginBottom: "6px",
+                    animation: "fadeUp 0.25s cubic-bezier(0.22,1,0.36,1) both",
+                  }}>
+                    <div style={{
+                      maxWidth: isMobile ? "82%" : "62%",
+                      background: isSent
+                        ? "linear-gradient(135deg, rgba(102,96,221,0.35), rgba(144,136,238,0.25))"
+                        : "rgba(255,255,255,0.05)",
+                      border: isSent
+                        ? "1px solid rgba(136,128,255,0.25)"
+                        : "1px solid rgba(255,255,255,0.08)",
+                      borderRadius: isSent ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                      padding: "10px 14px",
+                      backdropFilter: "blur(8px)",
+                      boxShadow: isSent ? "0 0 20px rgba(100,90,200,0.1)" : "none",
+                    }}>
+                      {!isSent && (
+                        <p style={{
+                          fontFamily: "'DM Mono', monospace", fontSize: "10px",
+                          color: "#b0aaff", margin: "0 0 4px 0", letterSpacing: "0.08em",
+                        }}>{msg.username}</p>
+                      )}
+                      <p style={{
+                        fontFamily: "'Syne', sans-serif", fontSize: "14px",
+                        color: isSent ? "#e8e8f0" : "rgba(230,230,245,0.9)",
+                        margin: "0 0 4px 0", lineHeight: 1.5,
+                      }}>{msg.text}</p>
+                      <p style={{
+                        fontFamily: "'DM Mono', monospace", fontSize: "10px",
+                        color: "rgba(200,200,230,0.3)", margin: 0, textAlign: "right",
+                        letterSpacing: "0.04em",
+                      }}>{msg.time}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* ── INPUT ── */}
+            <div style={{
+              padding: isMobile ? "12px" : "16px 20px", flexShrink: 0,
+              borderTop: "1px solid rgba(255,255,255,0.07)",
+              background: "rgba(7,7,13,0.85)", backdropFilter: "blur(16px)",
+              display: "flex", alignItems: "center", gap: "12px",
+            }}>
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                placeholder="Type message..."
+                style={{
+                  flex: 1,
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  borderRadius: "12px", padding: "13px 20px",
+                  color: "#e8e8f0", fontFamily: "'Syne', sans-serif", fontSize: "14px",
+                  outline: "none", transition: "border-color 0.2s, box-shadow 0.2s",
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = "rgba(136,128,255,0.4)";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(136,128,255,0.08)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = "rgba(255,255,255,0.09)";
+                  e.target.style.boxShadow = "none";
+                }}
+              />
+              <button
+                onClick={sendMessage}
+                style={{
+                  width: "46px", height: "46px", borderRadius: "12px",
+                  background: input.trim()
+                    ? "linear-gradient(135deg, #6660dd, #9088ee)"
+                    : "rgba(255,255,255,0.05)",
+                  border: input.trim() ? "none" : "1px solid rgba(255,255,255,0.09)",
+                  color: input.trim() ? "#fff" : "rgba(255,255,255,0.25)",
+                  fontSize: "18px", cursor: input.trim() ? "pointer" : "default",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "all 0.2s", flexShrink: 0,
+                  boxShadow: input.trim() ? "0 0 20px rgba(100,90,200,0.3)" : "none",
+                }}
+              >
+                ↑
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </>
