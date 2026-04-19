@@ -54,9 +54,12 @@ function Chat() {
   const [toasts, setToasts] = useState([]);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+  const [typingUsers, setTypingUsers] = useState([]);
 
   const bottomRef = useRef(null);
   const destroySoundRef = useRef(new Audio("/sounds/destroy.mp3"));
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
 
   // ── Toast helper ──
   const showToast = (message, type = "info") => {
@@ -120,12 +123,17 @@ function Chat() {
       setTimeout(() => { window.location.href = "/"; }, 2000);
     });
 
+    socket.on("typing-users-updated", (users) => {
+      setTypingUsers(users.filter((user) => user !== username));
+    });
+
     return () => {
       socket.off("receive-message");
       socket.off("user-joined");
       socket.off("user-left");
       socket.off("participants-updated");
       socket.off("room-destroyed");
+      socket.off("typing-users-updated");
     };
   }, [roomId, nameSet, username]);
 
@@ -146,7 +154,51 @@ function Chat() {
     socket.emit("send-message", { roomId, message: input, username, time });
     setMessages((prev) => [...prev, { type: "sent", text: input, time }]);
     setInput("");
+    socket.emit("typing-stop", { roomId, username });
+    isTypingRef.current = false;
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   };
+
+  const handleTypingInput = (value) => {
+    setInput(value);
+    if (!nameSet) return;
+
+    if (value.trim()) {
+      if (!isTypingRef.current) {
+        socket.emit("typing-start", { roomId, username });
+        isTypingRef.current = true;
+      }
+
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        socket.emit("typing-stop", { roomId, username });
+        isTypingRef.current = false;
+      }, 1200);
+    } else if (isTypingRef.current) {
+      socket.emit("typing-stop", { roomId, username });
+      isTypingRef.current = false;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+  };
+
+  const handleInputBlur = (e) => {
+    e.target.style.borderColor = "rgba(255,255,255,0.09)";
+    e.target.style.boxShadow = "none";
+    if (isTypingRef.current) {
+      socket.emit("typing-stop", { roomId, username });
+      isTypingRef.current = false;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (isTypingRef.current && roomId && username) {
+        socket.emit("typing-stop", { roomId, username });
+      }
+    };
+  }, [roomId, username]);
 
   const copyId = () => {
     navigator.clipboard.writeText(roomId);
@@ -485,6 +537,49 @@ function Chat() {
                   </div>
                 );
               })}
+              {typingUsers.length > 0 && (
+                <div style={{
+                  display: "flex",
+                  justifyContent: "flex-start",
+                  marginBottom: "8px",
+                  animation: "fadeUp 0.25s cubic-bezier(0.22,1,0.36,1) both",
+                }}>
+                  <div style={{
+                    maxWidth: isMobile ? "82%" : "62%",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(176,170,255,0.22)",
+                    borderRadius: "14px 14px 14px 4px",
+                    padding: "10px 14px",
+                    backdropFilter: "blur(8px)",
+                  }}>
+                    <p style={{
+                      fontFamily: "'DM Mono', monospace",
+                      fontSize: "10px",
+                      color: "#b0aaff",
+                      margin: "0 0 6px 0",
+                      letterSpacing: "0.06em",
+                    }}>
+                      {typingUsers.length === 1
+                        ? `${typingUsers[0]} is typing`
+                        : `${typingUsers.length} people are typing`}
+                    </p>
+                    <div style={{ display: "flex", gap: "5px", alignItems: "center" }}>
+                      {[0, 1, 2].map((dot) => (
+                        <span
+                          key={dot}
+                          style={{
+                            width: "7px",
+                            height: "7px",
+                            borderRadius: "50%",
+                            background: "rgba(176,170,255,0.9)",
+                            animation: `typingPulse 1.2s ${dot * 0.2}s infinite ease-in-out`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={bottomRef} />
             </div>
 
@@ -497,7 +592,7 @@ function Chat() {
             }}>
               <input
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => handleTypingInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Type message..."
                 style={{
@@ -512,10 +607,7 @@ function Chat() {
                   e.target.style.borderColor = "rgba(136,128,255,0.4)";
                   e.target.style.boxShadow = "0 0 0 3px rgba(136,128,255,0.08)";
                 }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(255,255,255,0.09)";
-                  e.target.style.boxShadow = "none";
-                }}
+                onBlur={handleInputBlur}
               />
               <button
                 onClick={sendMessage}
@@ -580,6 +672,11 @@ const cssKeyframes = `
 @keyframes toastIn {
   from { opacity: 0; transform: translateX(20px); }
   to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes typingPulse {
+  0%, 80%, 100% { opacity: 0.28; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
 }
 
 ::-webkit-scrollbar { width: 4px; }

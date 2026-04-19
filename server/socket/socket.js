@@ -1,5 +1,19 @@
 export const setupSocket = (io) => {
   const users = {}; // socket.id → { username, roomId }
+  const roomTypers = {}; // roomId -> Set<username>
+
+  const emitRoomTypingUsers = (roomId) => {
+    const typingUsers = roomTypers[roomId] ? Array.from(roomTypers[roomId]) : [];
+    io.to(roomId).emit("typing-users-updated", typingUsers);
+  };
+
+  const removeTypingUser = (roomId, username) => {
+    if (!roomId || !username || !roomTypers[roomId]) return;
+    roomTypers[roomId].delete(username);
+    if (roomTypers[roomId].size === 0) delete roomTypers[roomId];
+    emitRoomTypingUsers(roomId);
+  };
+
   const emitRoomParticipants = (roomId) => {
     const participants = Object.values(users)
       .filter((user) => user.roomId === roomId)
@@ -33,6 +47,18 @@ export const setupSocket = (io) => {
       };
 
       socket.to(roomId).emit("receive-message", msgData);
+      removeTypingUser(roomId, username);
+    });
+
+    socket.on("typing-start", ({ roomId, username }) => {
+      if (!roomId || !username) return;
+      if (!roomTypers[roomId]) roomTypers[roomId] = new Set();
+      roomTypers[roomId].add(username);
+      emitRoomTypingUsers(roomId);
+    });
+
+    socket.on("typing-stop", ({ roomId, username }) => {
+      removeTypingUser(roomId, username);
     });
 
     // DESTROY ROOM
@@ -48,6 +74,7 @@ export const setupSocket = (io) => {
         const { username, roomId } = user;
 
         socket.to(roomId).emit("user-left", `${username} left the room`);
+        removeTypingUser(roomId, username);
 
         delete users[socket.id];
         emitRoomParticipants(roomId);
