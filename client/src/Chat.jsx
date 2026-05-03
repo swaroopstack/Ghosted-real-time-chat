@@ -100,6 +100,17 @@ function Chat() {
       }]);
     });
 
+    socket.on("chat-history", (history = []) => {
+      setMessages(
+        history.map((item) => ({
+          type: "received",
+          username: item.username,
+          text: item.message,
+          time: item.time,
+        }))
+      );
+    });
+
     socket.on("user-joined", (msg) => {
       setMessages((prev) => [...prev, { type: "system", text: msg }]);
       showToast(msg, "success");
@@ -122,6 +133,7 @@ function Chat() {
 
     return () => {
       socket.off("receive-message");
+      socket.off("chat-history");
       socket.off("user-joined");
       socket.off("user-left");
       socket.off("participants-updated");

@@ -1,5 +1,14 @@
 export const setupSocket = (io) => {
   const users = {}; // socket.id → { username, roomId }
+  const roomMessages = {}; // roomId -> [{ message, username, time }]
+
+  const ensureRoomMessages = (roomId) => {
+    if (!roomMessages[roomId]) {
+      roomMessages[roomId] = [];
+    }
+    return roomMessages[roomId];
+  };
+
   const emitRoomParticipants = (roomId) => {
     const participants = Object.values(users)
       .filter((user) => user.roomId === roomId)
@@ -18,6 +27,9 @@ export const setupSocket = (io) => {
       // store user info
       users[socket.id] = { username, roomId };
 
+      const history = ensureRoomMessages(roomId);
+      socket.emit("chat-history", history);
+
       socket.to(roomId).emit("user-joined", `${username} joined the room`);
       emitRoomParticipants(roomId);
     });
@@ -32,11 +44,14 @@ export const setupSocket = (io) => {
         time
       };
 
+      ensureRoomMessages(roomId).push(msgData);
+
       socket.to(roomId).emit("receive-message", msgData);
     });
 
     // DESTROY ROOM
     socket.on("destroy-room", (roomId) => {
+      delete roomMessages[roomId];
       io.to(roomId).emit("room-destroyed");
     });
 
