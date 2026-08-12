@@ -98,7 +98,6 @@ export default function Home() {
   const [joinUsername, setJoinUsername] = useState("");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const fullText = "you were never here.";
-  const intervalRef = useRef(null);
   const glitchRef = useRef(null);
 
   const navigate = useNavigate();
@@ -571,7 +570,7 @@ const joinInputStyle = {
   boxSizing: "border-box",
 };
 
-function Button({ label, primary, icon, onClick, isMobile }) {
+function Button({ label, primary, onClick, isMobile }) {
   const [hovered, setHovered] = useState(false);
 
   const base = {

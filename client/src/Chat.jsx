@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
 const socket = io(import.meta.env.VITE_BACKEND_URL);
@@ -44,6 +44,7 @@ function Toast({ toasts, isMobile }) {
 function Chat() {
   const { roomId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const prefixedUsername = location.state?.username?.trim() || "";
 
   const [username, setUsername] = useState(prefixedUsername);
@@ -162,6 +163,10 @@ function Chat() {
     socket.emit("destroy-room", roomId);
   };
 
+  const leaveCreateRoom = () => {
+    navigate("/");
+  };
+
   // ─── Username Screen ────────────────────────────────────────────────────
   if (!nameSet) {
     return (
@@ -237,6 +242,38 @@ function Chat() {
               onMouseLeave={(e) => { e.target.style.boxShadow = "0 0 20px rgba(136,128,255,0.25)"; e.target.style.transform = "none"; }}
             >
               ENTER ROOM
+            </button>
+
+            <button
+              type="button"
+              onClick={leaveCreateRoom}
+              aria-label="Cancel room creation and return home"
+              style={{
+                width: "100%",
+                padding: "11px",
+                background: "transparent",
+                border: "1px solid rgba(180,178,255,0.18)",
+                borderRadius: "8px",
+                color: "rgba(220,218,255,0.68)",
+                fontFamily: "'Syne', sans-serif",
+                fontWeight: 700,
+                fontSize: "11px",
+                letterSpacing: "0.16em",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.borderColor = "rgba(180,178,255,0.38)";
+                e.target.style.color = "rgba(235,234,255,0.9)";
+                e.target.style.background = "rgba(255,255,255,0.04)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.borderColor = "rgba(180,178,255,0.18)";
+                e.target.style.color = "rgba(220,218,255,0.68)";
+                e.target.style.background = "transparent";
+              }}
+            >
+              CANCEL
             </button>
 
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "rgba(180,178,255,0.3)", letterSpacing: "0.05em", margin: 0, textAlign: "center" }}>
