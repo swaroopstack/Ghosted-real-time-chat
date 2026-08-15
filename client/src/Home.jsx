@@ -103,9 +103,25 @@ export default function Home() {
   const navigate = useNavigate();
 
   const createRoom = async () => {
-    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/create-room`, { method: "POST" });
-    const data = await res.json();
-    navigate(`/room/${data.roomId}`);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/create-room`, { method: "POST" });
+
+      if (!response.ok) {
+        throw new Error("Unable to create room");
+      }
+
+      const data = await response.json();
+      const newRoomId = data?.roomId?.trim();
+
+      if (!newRoomId) {
+        throw new Error("Room ID was missing from the server response");
+      }
+
+      navigate(`/room/${encodeURIComponent(newRoomId)}`);
+    } catch (error) {
+      console.error("CREATE ROOM ERROR:", error);
+      alert("Could not create a room right now. Please try again.");
+    }
   };
 
   const openJoinPanel = () => {
