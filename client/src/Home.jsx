@@ -73,6 +73,19 @@ const glitchKeyframes = `
 }
 `;
 
+const ROOM_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const ROOM_ID_LENGTH = 8;
+
+const generateRoomId = () => {
+  const randomValues = new Uint8Array(ROOM_ID_LENGTH);
+  window.crypto.getRandomValues(randomValues);
+
+  return Array.from(
+    randomValues,
+    (value) => ROOM_ID_ALPHABET[value % ROOM_ID_ALPHABET.length],
+  ).join("");
+};
+
 const Particle = ({ style }) => (
   <div style={{
     position: "absolute",
