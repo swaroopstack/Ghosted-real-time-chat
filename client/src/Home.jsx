@@ -73,6 +73,19 @@ const glitchKeyframes = `
 }
 `;
 
+const ROOM_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const ROOM_ID_LENGTH = 8;
+
+const generateRoomId = () => {
+  const randomValues = new Uint8Array(ROOM_ID_LENGTH);
+  window.crypto.getRandomValues(randomValues);
+
+  return Array.from(
+    randomValues,
+    (value) => ROOM_ID_ALPHABET[value % ROOM_ID_ALPHABET.length],
+  ).join("");
+};
+
 const Particle = ({ style }) => (
   <div style={{
     position: "absolute",
@@ -101,15 +114,6 @@ export default function Home() {
   const glitchRef = useRef(null);
 
   const navigate = useNavigate();
-
-  const generateRoomId = () => {
-    const randomValues = new Uint32Array(2);
-    window.crypto.getRandomValues(randomValues);
-
-    return Array.from(randomValues, (value) => value.toString(36))
-      .join("")
-      .slice(0, 8);
-  };
 
   const createRoom = () => {
     const newRoomId = generateRoomId();
