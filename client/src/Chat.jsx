@@ -42,7 +42,9 @@ function Toast({ toasts, isMobile }) {
 
 // ─── Main Chat Component ─────────────────────────────────────────────────────
 function Chat() {
-  const { roomId } = useParams();
+  const { roomId: routeRoomId } = useParams();
+  const roomId = routeRoomId?.trim();
+  const hasValidRoomId = Boolean(roomId) && roomId !== "undefined" && roomId !== "null";
   const location = useLocation();
   const navigate = useNavigate();
   const prefixedUsername = location.state?.username?.trim() || "";
@@ -66,6 +68,12 @@ function Chat() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000);
   };
 
+  useEffect(() => {
+    if (hasValidRoomId) return;
+
+    navigate("/", { replace: true });
+  }, [hasValidRoomId, navigate]);
+
   // ── Countdown timer ──
   useEffect(() => {
     if (!nameSet) return;
@@ -88,7 +96,7 @@ function Chat() {
 
   // ── Socket logic ──
   useEffect(() => {
-    if (!nameSet) return;
+    if (!nameSet || !hasValidRoomId) return;
 
     socket.emit("join-room", { roomId, username });
 
@@ -128,7 +136,7 @@ function Chat() {
       socket.off("participants-updated");
       socket.off("room-destroyed");
     };
-  }, [roomId, nameSet, username]);
+  }, [roomId, hasValidRoomId, nameSet, username]);
 
   // ── Auto scroll ──
   useEffect(() => {
@@ -150,6 +158,7 @@ function Chat() {
   };
 
   const copyId = () => {
+    if (!hasValidRoomId) return;
     navigator.clipboard.writeText(roomId);
     showToast("Room ID copied!", "success");
   };
@@ -160,6 +169,7 @@ function Chat() {
   };
 
   const destroyRoom = () => {
+    if (!hasValidRoomId) return;
     socket.emit("destroy-room", roomId);
   };
 
@@ -277,7 +287,7 @@ function Chat() {
             </button>
 
             <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", color: "rgba(180,178,255,0.3)", letterSpacing: "0.05em", margin: 0, textAlign: "center" }}>
-              room · <span style={{ color: "rgba(124,245,160,0.6)" }}>{roomId.slice(0, 8)}…</span>
+              room · <span style={{ color: "rgba(124,245,160,0.6)" }}>{roomId?.slice(0, 8)}…</span>
             </p>
           </div>
         </div>

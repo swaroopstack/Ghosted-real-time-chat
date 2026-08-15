@@ -102,10 +102,19 @@ export default function Home() {
 
   const navigate = useNavigate();
 
-  const createRoom = async () => {
-    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/create-room`, { method: "POST" });
-    const data = await res.json();
-    navigate(`/room/${data.roomId}`);
+  const generateRoomId = () => {
+    const randomValues = new Uint32Array(2);
+    window.crypto.getRandomValues(randomValues);
+
+    return Array.from(randomValues, (value) => value.toString(36))
+      .join("")
+      .slice(0, 8);
+  };
+
+  const createRoom = () => {
+    const newRoomId = generateRoomId();
+
+    navigate(`/room/${newRoomId}`);
   };
 
   const openJoinPanel = () => {
