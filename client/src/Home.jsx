@@ -96,35 +96,53 @@ export default function Home() {
   const [showJoinPanel, setShowJoinPanel] = useState(false);
   const [joinRoomId, setJoinRoomId] = useState("");
   const [joinUsername, setJoinUsername] = useState("");
+  const [joinError, setJoinError] = useState("");
+  const [joining, setJoining] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
   const fullText = "you were never here.";
   const glitchRef = useRef(null);
 
   const navigate = useNavigate();
 
-  const createRoom = async () => {
+  const getBackendUrl = () =>
+    (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
+
+  const generateClientRoomId = () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/create-room`, { method: "POST" });
-
-      if (!response.ok) {
-        throw new Error("Unable to create room");
-      }
-
-      const data = await response.json();
-      const newRoomId = data?.roomId?.trim();
-
-      if (!newRoomId) {
-        throw new Error("Room ID was missing from the server response");
-      }
-
-      navigate(`/room/${encodeURIComponent(newRoomId)}`);
-    } catch (error) {
-      console.error("CREATE ROOM ERROR:", error);
-      alert("Could not create a room right now. Please try again.");
+      const bytes = new Uint8Array(4);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    } catch {
+      return Math.random().toString(16).substring(2, 10).padEnd(8, "0");
     }
   };
 
+  const persistRoomInBackground = (roomId) => {
+    const backend = getBackendUrl();
+    if (!backend) return;
+    // fire-and-forget: navigation must not wait for DB
+    fetch(`${backend}/api/create-room`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomId }),
+    }).catch((err) => console.error("BACKGROUND CREATE ROOM ERROR:", err));
+  };
+
+  const createRoom = () => {
+    if (creating) return;
+    setCreating(true);
+    // Instant: generate locally + navigate, persist to server in background.
+    // Old flow awaited Mongo save (cold-start = 10-30s hang).
+    const newRoomId = generateClientRoomId();
+    persistRoomInBackground(newRoomId);
+    navigate(`/room/${encodeURIComponent(newRoomId)}`);
+  };
+
   const openJoinPanel = () => {
+    setJoinError("");
     setShowJoinPanel(true);
   };
 
@@ -132,14 +150,38 @@ export default function Home() {
     setShowJoinPanel(false);
     setJoinRoomId("");
     setJoinUsername("");
+    setJoinError("");
+    setJoining(false);
   };
 
-  const joinRoom = () => {
-    const trimmedRoomId = joinRoomId.trim();
+  const joinRoom = async () => {
+    const trimmedRoomId = joinRoomId.trim().toLowerCase();
     const trimmedUsername = joinUsername.trim();
 
-    if (!trimmedRoomId || !trimmedUsername) return;
-    navigate(`/room/${trimmedRoomId}`, { state: { username: trimmedUsername } });
+    if (!trimmedRoomId || !trimmedUsername || joining) return;
+    setJoinError("");
+    setJoining(true);
+
+    const backend = getBackendUrl();
+    if (backend) {
+      try {
+        const res = await fetch(
+          `${backend}/api/room/${encodeURIComponent(trimmedRoomId)}`
+        );
+        if (res.status === 404) {
+          setJoinError("Room not found or expired. Check the ID or create a new room.");
+          setJoining(false);
+          return;
+        }
+      } catch {
+        // Backend unreachable (cold start / offline): fall through and let
+        // socket join attempt decide, preserving old behavior.
+      }
+    }
+
+    navigate(`/room/${encodeURIComponent(trimmedRoomId)}`, {
+      state: { username: trimmedUsername },
+    });
     closeJoinPanel();
   };
 
@@ -394,7 +436,7 @@ export default function Home() {
             display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center", width: isMobile ? "100%" : "auto",
             animation: "fadeUp 0.9s 0.55s both",
           }}>
-            <Button primary label="CREATE ROOM" onClick={createRoom} isMobile={isMobile} />
+            <Button primary label={creating ? "CREATING..." : "CREATE ROOM"} onClick={createRoom} isMobile={isMobile} disabled={creating} />
             <Button label="JOIN ROOM" onClick={openJoinPanel} isMobile={isMobile} />
             <GitHubStarButton
               stars={starCount}
@@ -501,7 +543,8 @@ export default function Home() {
               <input
                 autoFocus
                 value={joinRoomId}
-                onChange={(e) => setJoinRoomId(e.target.value)}
+                onChange={(e) => { setJoinRoomId(e.target.value); if (joinError) setJoinError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && joinRoom()}
                 placeholder="e.g. 9f2a31cd"
                 style={joinInputStyle}
               />
@@ -518,12 +561,28 @@ export default function Home() {
               </label>
               <input
                 value={joinUsername}
-                onChange={(e) => setJoinUsername(e.target.value)}
+                onChange={(e) => { setJoinUsername(e.target.value); if (joinError) setJoinError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && joinRoom()}
                 placeholder="anonymous_ghost"
                 style={joinInputStyle}
               />
             </div>
+
+            {joinError && (
+              <p style={{
+                margin: 0,
+                fontFamily: "'DM Mono', monospace",
+                fontSize: "11px",
+                letterSpacing: "0.04em",
+                color: "#ff8095",
+                background: "rgba(255,80,100,0.08)",
+                border: "1px solid rgba(255,80,100,0.25)",
+                borderRadius: "8px",
+                padding: "9px 12px",
+              }}>
+                {joinError}
+              </p>
+            )}
 
             <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
               <button
@@ -546,7 +605,7 @@ export default function Home() {
               </button>
               <button
                 onClick={joinRoom}
-                disabled={!joinRoomId.trim() || !joinUsername.trim()}
+                disabled={!joinRoomId.trim() || !joinUsername.trim() || joining}
                 style={{
                   flex: 1,
                   padding: "12px",
@@ -558,12 +617,12 @@ export default function Home() {
                   fontSize: "11px",
                   letterSpacing: "0.14em",
                   fontWeight: 700,
-                  cursor: !joinRoomId.trim() || !joinUsername.trim() ? "not-allowed" : "pointer",
-                  opacity: !joinRoomId.trim() || !joinUsername.trim() ? 0.5 : 1,
+                  cursor: !joinRoomId.trim() || !joinUsername.trim() || joining ? "not-allowed" : "pointer",
+                  opacity: !joinRoomId.trim() || !joinUsername.trim() || joining ? 0.5 : 1,
                   boxShadow: "0 0 20px rgba(136,128,255,0.25)",
                 }}
               >
-                JOIN
+                {joining ? "CHECKING..." : "JOIN"}
               </button>
             </div>
           </div>
@@ -586,7 +645,7 @@ const joinInputStyle = {
   boxSizing: "border-box",
 };
 
-function Button({ label, primary, onClick, isMobile }) {
+function Button({ label, primary, onClick, isMobile, disabled }) {
   const [hovered, setHovered] = useState(false);
 
   const base = {
@@ -596,7 +655,7 @@ function Button({ label, primary, onClick, isMobile }) {
     fontFamily: "'Syne', sans-serif",
     fontWeight: 700,
     letterSpacing: "0.18em",
-    cursor: "pointer",
+    cursor: disabled ? "wait" : "pointer",
     border: "none",
     outline: "none",
     transition: "all 0.25s ease",
@@ -604,6 +663,7 @@ function Button({ label, primary, onClick, isMobile }) {
     display: "flex", alignItems: "center", gap: "8px",
     width: isMobile ? "100%" : "auto",
     justifyContent: "center",
+    opacity: disabled ? 0.7 : 1,
   };
 
   if (primary) {
@@ -612,6 +672,7 @@ function Button({ label, primary, onClick, isMobile }) {
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={onClick}
+        disabled={disabled}
         style={{
           ...base,
           background: hovered
