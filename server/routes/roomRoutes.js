@@ -16,22 +16,42 @@ const normalizeRoomId = (value) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
 // create room API — accepts optional client-generated { roomId } for instant nav
+// Idempotent: if the client-generated ID already exists, return it (don't mint a new one).
 router.post("/create-room", async (req, res) => {
   try {
     let roomId = normalizeRoomId(req.body?.roomId);
     if (roomId && !ROOM_ID_RE.test(roomId)) {
       return res.status(400).json({ error: "Invalid room ID format" });
     }
+    const clientProvided = Boolean(roomId);
     if (!roomId) roomId = generateRoomId();
 
+    if (clientProvided) {
+      const existing = await Room.findOne({ roomId }).lean();
+      if (existing) {
+        const createdAt = existing.createdAt ?? new Date();
+        const expiresAt = new Date(createdAt.getTime() + ROOM_TTL_SECONDS * 1000);
+        return res.json({ roomId, expiresAt });
+      }
+    }
+
     let saved = null;
-    // retry on rare ID collision (E11000)
+    // retry on rare ID collision (E11000) — only mint a new ID for server-generated ones
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         saved = await new Room({ roomId }).save();
         break;
       } catch (err) {
         if (err?.code === 11000) {
+          if (clientProvided) {
+            // another request won the race — return the existing doc
+            const existing = await Room.findOne({ roomId }).lean();
+            if (existing) {
+              const createdAt = existing.createdAt ?? new Date();
+              const expiresAt = new Date(createdAt.getTime() + ROOM_TTL_SECONDS * 1000);
+              return res.json({ roomId, expiresAt });
+            }
+          }
           roomId = generateRoomId();
           continue;
         }

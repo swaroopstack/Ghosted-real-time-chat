@@ -88,7 +88,12 @@ function Chat() {
     }
   }, []);
 
+  const justCreated = location.state?.justCreated === true;
+
   // ── Validate room exists + load server-authoritative expiry ──
+  // Create flow passes justCreated: never block the creator — the background
+  // POST may still be in flight (or Render cold-starting), so treat as valid
+  // immediately and ensure persistence with retries. Join flow stays strict.
   useEffect(() => {
     if (!hasValidRoomId) return;
     const backend = getBackendUrl();
@@ -97,6 +102,47 @@ function Chat() {
       return;
     }
     let cancelled = false;
+
+    if (justCreated) {
+      // Instant UX: creator goes straight to alias screen with local 10-min timer.
+      setExpiresAt(Date.now() + 600 * 1000);
+      setTimeLeft(600);
+      setRoomStatus("valid");
+
+      // Ensure the room exists server-side (background POST from Home may
+      // still be pending). Idempotent — safe to POST again.
+      const ensure = async (attempts = 4) => {
+        for (let i = 0; i < attempts && !cancelled; i++) {
+          try {
+            const get = await fetch(`${backend}/api/room/${encodeURIComponent(roomId)}`);
+            if (get.ok) {
+              const data = await get.json().catch(() => null);
+              if (!cancelled && data?.expiresAt) {
+                const exp = new Date(data.expiresAt).getTime();
+                if (Number.isFinite(exp)) {
+                  setExpiresAt(exp);
+                  setTimeLeft(Math.max(0, Math.round((exp - Date.now()) / 1000)));
+                }
+              }
+              return;
+            }
+            await fetch(`${backend}/api/create-room`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ roomId }),
+            }).catch(() => null);
+          } catch { /* retry */ }
+          if (i < attempts - 1) {
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+        }
+      };
+      ensure();
+      return () => {
+        cancelled = true;
+      };
+    }
+
     setRoomStatus("checking");
     fetch(`${backend}/api/room/${encodeURIComponent(roomId)}`)
       .then((res) => {
@@ -128,7 +174,7 @@ function Chat() {
     return () => {
       cancelled = true;
     };
-  }, [roomId, hasValidRoomId]);
+  }, [roomId, hasValidRoomId, justCreated]);
 
   // ── Countdown timer (server-synced when expiresAt known) ──
   useEffect(() => {

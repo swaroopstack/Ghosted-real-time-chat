@@ -138,7 +138,9 @@ export default function Home() {
     // Old flow awaited Mongo save (cold-start = 10-30s hang).
     const newRoomId = generateClientRoomId();
     persistRoomInBackground(newRoomId);
-    navigate(`/room/${encodeURIComponent(newRoomId)}`);
+    navigate(`/room/${encodeURIComponent(newRoomId)}`, {
+      state: { justCreated: true },
+    });
   };
 
   const openJoinPanel = () => {
