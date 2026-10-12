@@ -2,8 +2,6 @@ import { useEffect, useState, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 
-const socket = io(import.meta.env.VITE_BACKEND_URL);
-
 // ─── Toast Component ────────────────────────────────────────────────────────
 function Toast({ toasts, isMobile }) {
   return (
@@ -55,11 +53,18 @@ function Chat() {
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [toasts, setToasts] = useState([]);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(600); // fallback until server expiry loads
+  const [roomStatus, setRoomStatus] = useState("checking"); // checking | valid | invalid
+  const [expiresAt, setExpiresAt] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
 
   const bottomRef = useRef(null);
-  const destroySoundRef = useRef(new Audio("/sounds/destroy.mp3"));
+  const destroySoundRef = useRef(null);
+  const socketRef = useRef(null);
+  const joinedRef = useRef(false);
+
+  const getBackendUrl = () =>
+    (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
 
   // ── Toast helper ──
   const showToast = (message, type = "info") => {
@@ -74,17 +79,72 @@ function Chat() {
     navigate("/", { replace: true });
   }, [hasValidRoomId, navigate]);
 
-  // ── Countdown timer ──
+  // lazy audio init (avoids constructor during render)
   useEffect(() => {
-    if (!nameSet) return;
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
+    try {
+      destroySoundRef.current = new Audio("/sounds/destroy.mp3");
+    } catch {
+      destroySoundRef.current = null;
+    }
+  }, []);
+
+  // ── Validate room exists + load server-authoritative expiry ──
+  useEffect(() => {
+    if (!hasValidRoomId) return;
+    const backend = getBackendUrl();
+    if (!backend) {
+      setRoomStatus("valid");
+      return;
+    }
+    let cancelled = false;
+    setRoomStatus("checking");
+    fetch(`${backend}/api/room/${encodeURIComponent(roomId)}`)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.status === 404) {
+          setRoomStatus("invalid");
+          return;
+        }
+        if (!res.ok) {
+          // transient error: allow chat (socket is source of truth)
+          setRoomStatus("valid");
+          return;
+        }
+        return res.json().then((data) => {
+          if (cancelled) return;
+          if (data?.expiresAt) {
+            const exp = new Date(data.expiresAt).getTime();
+            if (Number.isFinite(exp)) {
+              setExpiresAt(exp);
+              setTimeLeft(Math.max(0, Math.round((exp - Date.now()) / 1000)));
+            }
+          }
+          setRoomStatus("valid");
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setRoomStatus("valid");
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId, hasValidRoomId]);
+
+  // ── Countdown timer (server-synced when expiresAt known) ──
+  useEffect(() => {
+    if (!nameSet || roomStatus !== "valid") return;
+    const interval = setInterval(() => {
+      if (expiresAt) {
+        setTimeLeft(Math.max(0, Math.round((expiresAt - Date.now()) / 1000)));
+      } else {
+        setTimeLeft((prev) => {
+          if (prev <= 1) { clearInterval(interval); return 0; }
+          return prev - 1;
+        });
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, [nameSet]);
+  }, [nameSet, roomStatus, expiresAt]);
 
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, "0");
@@ -94,13 +154,25 @@ function Chat() {
 
   const timerColor = timeLeft <= 60 ? "#ff6680" : timeLeft <= 180 ? "#ffb347" : "#7cf5a0";
 
-  // ── Socket logic ──
+  // ── Socket lifecycle: create per-mount, leave + disconnect on cleanup ──
   useEffect(() => {
-    if (!nameSet || !hasValidRoomId) return;
+    if (!nameSet || !hasValidRoomId || roomStatus !== "valid") return;
 
-    socket.emit("join-room", { roomId, username });
+    const backend = getBackendUrl();
+    const sock = io(backend || undefined);
+    socketRef.current = sock;
+    joinedRef.current = false;
 
-    socket.on("receive-message", (data) => {
+    const doJoin = () => {
+      if (joinedRef.current) return;
+      joinedRef.current = true;
+      sock.emit("join-room", { roomId, username });
+    };
+
+    if (sock.connected) doJoin();
+    else sock.on("connect", doJoin);
+
+    sock.on("receive-message", (data) => {
       setMessages((prev) => [...prev, {
         type: "received",
         username: data.username,
@@ -109,34 +181,38 @@ function Chat() {
       }]);
     });
 
-    socket.on("user-joined", (msg) => {
+    sock.on("user-joined", (msg) => {
       setMessages((prev) => [...prev, { type: "system", text: msg }]);
       showToast(msg, "success");
     });
 
-    socket.on("user-left", (msg) => {
+    sock.on("user-left", (msg) => {
       setMessages((prev) => [...prev, { type: "system", text: msg }]);
       showToast(msg, "info");
     });
 
-    socket.on("participants-updated", (users) => {
+    sock.on("participants-updated", (users) => {
       setParticipants(users);
     });
 
-    socket.on("room-destroyed", () => {
-      destroySoundRef.current.play().catch(() => {});
+    sock.on("room-destroyed", () => {
+      try {
+        destroySoundRef.current?.play()?.catch(() => {});
+      } catch { /* ignore */ }
       showToast("Room destroyed. Redirecting...", "error");
       setTimeout(() => { window.location.href = "/"; }, 2000);
     });
 
     return () => {
-      socket.off("receive-message");
-      socket.off("user-joined");
-      socket.off("user-left");
-      socket.off("participants-updated");
-      socket.off("room-destroyed");
+      try {
+        sock.emit("leave-room", { roomId });
+      } catch { /* ignore */ }
+      sock.removeAllListeners();
+      sock.disconnect();
+      socketRef.current = null;
+      joinedRef.current = false;
     };
-  }, [roomId, hasValidRoomId, nameSet, username]);
+  }, [roomId, hasValidRoomId, nameSet, username, roomStatus]);
 
   // ── Auto scroll ──
   useEffect(() => {
@@ -150,9 +226,9 @@ function Chat() {
   }, []);
 
   const sendMessage = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !socketRef.current) return;
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    socket.emit("send-message", { roomId, message: input, username, time });
+    socketRef.current.emit("send-message", { roomId, message: input, username, time });
     setMessages((prev) => [...prev, { type: "sent", text: input, time }]);
     setInput("");
   };
@@ -169,13 +245,79 @@ function Chat() {
   };
 
   const destroyRoom = () => {
-    if (!hasValidRoomId) return;
-    socket.emit("destroy-room", roomId);
+    if (!hasValidRoomId || !socketRef.current) return;
+    socketRef.current.emit("destroy-room", roomId);
+  };
+
+  const leaveChat = () => {
+    try {
+      socketRef.current?.emit("leave-room", { roomId });
+    } catch { /* ignore */ }
+    navigate("/");
   };
 
   const leaveCreateRoom = () => {
     navigate("/");
   };
+
+  // ─── Room checking / invalid screens ────────────────────────────────────
+  if (roomStatus === "checking") {
+    return (
+      <>
+        <style>{cssKeyframes}</style>
+        <div style={{
+          height: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+          background: "#07070d", fontFamily: "'DM Mono', monospace",
+          color: "rgba(200,200,230,0.6)", fontSize: "13px", letterSpacing: "0.1em",
+        }}>
+          CHECKING ROOM…
+        </div>
+      </>
+    );
+  }
+
+  if (roomStatus === "invalid") {
+    return (
+      <>
+        <style>{cssKeyframes}</style>
+        <Toast toasts={toasts} isMobile={isMobile} />
+        <div style={{
+          height: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+          background: "#07070d", fontFamily: "'Syne', sans-serif",
+          padding: "16px",
+        }}>
+          <div style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,80,100,0.25)",
+            borderRadius: "16px",
+            padding: "36px 32px",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: "16px",
+            maxWidth: "400px", width: "100%", textAlign: "center",
+          }}>
+            <span style={{ fontSize: "32px" }}>👻</span>
+            <h2 style={{ margin: 0, color: "#f1f1ff", fontSize: "18px", letterSpacing: "0.08em" }}>
+              ROOM NOT FOUND
+            </h2>
+            <p style={{ margin: 0, fontFamily: "'DM Mono', monospace", fontSize: "12px", color: "rgba(200,200,230,0.55)", lineHeight: 1.6 }}>
+              This room expired or the ID is wrong.<br />Check the ID or create a new room.
+            </p>
+            <button
+              onClick={leaveChat}
+              style={{
+                width: "100%", padding: "12px",
+                background: "linear-gradient(135deg, #6660dd, #9088ee)",
+                border: "none", borderRadius: "8px", color: "#fff",
+                fontFamily: "'Syne', sans-serif", fontWeight: 700,
+                fontSize: "12px", letterSpacing: "0.16em", cursor: "pointer",
+              }}
+            >
+              BACK HOME
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   // ─── Username Screen ────────────────────────────────────────────────────
   if (!nameSet) {
