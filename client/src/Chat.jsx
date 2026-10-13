@@ -57,6 +57,7 @@ function Chat() {
   const [roomStatus, setRoomStatus] = useState("checking"); // checking | valid | invalid
   const [expiresAt, setExpiresAt] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+  const [showParticipants, setShowParticipants] = useState(() => window.innerWidth > 768);
 
   const bottomRef = useRef(null);
   const destroySoundRef = useRef(null);
@@ -289,7 +290,11 @@ function Chat() {
   }, [messages]);
 
   useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    const onResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile) setShowParticipants(true);
+    };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -530,61 +535,85 @@ function Chat() {
 
         {/* ── HEADER ── */}
         <div style={{
-          display: "flex", alignItems: isMobile ? "stretch" : "center", justifyContent: "space-between",
-          flexDirection: isMobile ? "column" : "row",
-          gap: isMobile ? "10px" : "0",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: isMobile ? "8px 10px" : "0",
           padding: isMobile ? "10px 12px" : "0 20px", minHeight: "56px", flexShrink: 0,
           borderBottom: "1px solid rgba(255,255,255,0.07)",
           background: "rgba(7,7,13,0.85)", backdropFilter: "blur(16px)",
           position: "relative", zIndex: 10,
         }}>
           {/* Left: Room ID */}
-          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "8px" : "16px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "6px" : "10px", flexWrap: "wrap", minWidth: 0 }}>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", letterSpacing: "0.2em", color: "rgba(200,200,230,0.35)", display: isMobile ? "none" : "inline" }}>
               ROOM ID
             </span>
             <div style={{
               background: "rgba(124,245,160,0.08)", border: "1px solid rgba(124,245,160,0.2)",
-              borderRadius: "6px", padding: "4px 12px",
-              fontFamily: "'DM Mono', monospace", fontSize: "13px", color: "#7cf5a0",
+              borderRadius: "8px", padding: "5px 12px",
+              fontFamily: "'DM Mono', monospace", fontSize: isMobile ? "12px" : "13px", color: "#7cf5a0",
               letterSpacing: "0.04em",
             }}>
               {roomId}
             </div>
 
-            <HeaderBtn onClick={copyId} label="COPY ID" icon="⎘" />
-            <HeaderBtn onClick={copyLink} label="SHARE LINK" icon="⊹" />
+            <HeaderBtn onClick={copyId} label="COPY ID" title="Copy room ID" compact={isMobile} icon={<CopyIcon />} />
+            <HeaderBtn onClick={copyLink} label="SHARE" title="Copy share link" compact={isMobile} icon={<ShareIcon />} />
           </div>
 
           {/* Center: Timer */}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", letterSpacing: "0.2em", color: "rgba(200,200,230,0.35)" }}>
-              SELF-DESTRUCT
-            </span>
-            <div style={{
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {!isMobile && (
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: "10px", letterSpacing: "0.2em", color: "rgba(200,200,230,0.35)" }}>
+                SELF-DESTRUCT
+              </span>
+            )}
+            <div title={isMobile ? "Self-destruct timer" : undefined} style={{
               background: `rgba(${timerColor === "#ff6680" ? "255,80,100" : timerColor === "#ffb347" ? "255,179,71" : "124,245,160"},0.1)`,
               border: `1px solid ${timerColor}44`,
-              borderRadius: "6px", padding: "4px 14px",
-              fontFamily: "'DM Mono', monospace", fontSize: "15px",
+              borderRadius: "8px", padding: isMobile ? "5px 12px" : "4px 14px",
+              fontFamily: "'DM Mono', monospace", fontSize: isMobile ? "13px" : "15px",
               color: timerColor, fontWeight: 400,
               transition: "all 0.5s",
               boxShadow: `0 0 12px ${timerColor}22`,
+              fontVariantNumeric: "tabular-nums",
             }}>
-              {formatTime(timeLeft)}
+              {isMobile ? `⏳ ${formatTime(timeLeft)}` : formatTime(timeLeft)}
             </div>
           </div>
 
           {/* Right: Destroy */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", alignSelf: isMobile ? "flex-end" : "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {isMobile && (
+              <button
+                onClick={() => setShowParticipants((v) => !v)}
+                aria-expanded={showParticipants}
+                title="Toggle participants"
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "8px", padding: "7px 10px",
+                  fontFamily: "'DM Mono', monospace", fontSize: "10px",
+                  letterSpacing: "0.12em",
+                  color: "rgba(220,218,255,0.75)", cursor: "pointer",
+                }}
+              >
+                <UsersIcon />
+                {participants.length}
+                <span style={{ fontSize: "9px", opacity: 0.7 }}>{showParticipants ? "▲" : "▼"}</span>
+              </button>
+            )}
             <button
               onClick={destroyRoom}
+              title="Destroy room for everyone"
               style={{
-                display: "flex", alignItems: "center", gap: "8px",
+                display: "flex", alignItems: "center", gap: "7px",
                 background: "rgba(255,80,100,0.08)",
                 border: "1px solid rgba(255,80,100,0.3)",
-                borderRadius: "7px", padding: isMobile ? "7px 12px" : "7px 16px",
+                borderRadius: "8px", padding: isMobile ? "7px 10px" : "7px 16px",
                 fontFamily: "'Syne', sans-serif", fontWeight: 700,
-                fontSize: "11px", letterSpacing: "0.16em",
+                fontSize: "11px", letterSpacing: "0.14em",
                 color: "#ff6680", cursor: "pointer",
                 transition: "all 0.2s",
               }}
@@ -599,7 +628,7 @@ function Chat() {
                 e.currentTarget.style.transform = "none";
               }}
             >
-              <span style={{ fontSize: "13px" }}>⊗</span> DESTROY NOW
+              <DestroyIcon />{isMobile ? "DESTROY" : "DESTROY NOW"}
             </button>
           </div>
         </div>
@@ -614,9 +643,11 @@ function Chat() {
         }}>
           {/* ── PARTICIPANTS ── */}
           <aside style={{
-            width: isMobile ? "100%" : "240px",
+            display: isMobile && !showParticipants ? "none" : "block",
+            width: isMobile ? "100%" : "248px",
             minWidth: isMobile ? "auto" : "220px",
             maxWidth: isMobile ? "100%" : "260px",
+            maxHeight: isMobile ? "168px" : "none",
             borderRight: isMobile ? "none" : "1px solid rgba(255,255,255,0.07)",
             borderBottom: isMobile ? "1px solid rgba(255,255,255,0.07)" : "none",
             padding: isMobile ? "12px" : "18px 14px",
@@ -625,6 +656,7 @@ function Chat() {
             overflowY: "auto",
             scrollbarWidth: "thin",
             scrollbarColor: "rgba(255,255,255,0.08) transparent",
+            flexShrink: 0,
           }}>
             <p style={{
               fontFamily: "'DM Mono', monospace",
@@ -632,11 +664,19 @@ function Chat() {
               letterSpacing: "0.2em",
               color: "rgba(200,200,230,0.4)",
               margin: "0 0 12px 0",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
             }}>
-              JOINED ({participants.length})
+              <span style={{
+                width: "7px", height: "7px", borderRadius: "50%",
+                background: "#7cf5a0", boxShadow: "0 0 8px #7cf5a0",
+                display: "inline-block",
+              }} />
+              ONLINE ({participants.length})
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", flexWrap: isMobile ? "wrap" : "nowrap", gap: "8px" }}>
               {participants.length === 0 ? (
                 <p style={{
                   fontFamily: "'DM Mono', monospace",
@@ -644,23 +684,39 @@ function Chat() {
                   color: "rgba(200,200,230,0.35)",
                   margin: 0,
                 }}>
-                  Waiting for people...
+                  Waiting for people... share the link.
                 </p>
               ) : (
-                participants.map((person, idx) => (
-                  <div key={`${person}-${idx}`} style={{
-                    padding: "9px 10px",
-                    borderRadius: "8px",
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: "12px",
-                    color: person === username ? "#7cf5a0" : "rgba(220,220,245,0.85)",
-                    letterSpacing: "0.03em",
-                  }}>
-                    {person}{person === username ? " (you)" : ""}
-                  </div>
-                ))
+                participants.map((person, idx) => {
+                  const isMe = person === username;
+                  return (
+                    <div key={`${person}-${idx}`} style={{
+                      display: "flex", alignItems: "center", gap: "9px",
+                      padding: "8px 10px",
+                      borderRadius: "10px",
+                      background: isMe ? "rgba(124,245,160,0.07)" : "rgba(255,255,255,0.04)",
+                      border: isMe ? "1px solid rgba(124,245,160,0.22)" : "1px solid rgba(255,255,255,0.07)",
+                      fontFamily: "'DM Mono', monospace",
+                      fontSize: "12px",
+                      color: isMe ? "#7cf5a0" : "rgba(220,220,245,0.85)",
+                      letterSpacing: "0.03em",
+                    }}>
+                      <span style={{
+                        width: "24px", height: "24px", borderRadius: "50%", flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: isMe ? "rgba(124,245,160,0.15)" : "rgba(136,128,255,0.18)",
+                        color: isMe ? "#7cf5a0" : "#b0aaff",
+                        fontSize: "11px", fontWeight: 700,
+                        textTransform: "uppercase",
+                      }}>
+                        {(person?.[0] || "?").toUpperCase()}
+                      </span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {person}{isMe ? " (you)" : ""}
+                      </span>
+                    </div>
+                  );
+                })
               )}
             </div>
           </aside>
@@ -669,19 +725,30 @@ function Chat() {
           <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
             {/* ── MESSAGES ── */}
             <div style={{
-              flex: 1, overflowY: "auto", padding: isMobile ? "14px 12px" : "24px 20px",
-              display: "flex", flexDirection: "column", gap: "4px",
+              flex: 1, overflowY: "auto", padding: isMobile ? "16px 12px" : "24px 22px",
+              display: "flex", flexDirection: "column", gap: "6px",
               scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent",
             }}>
               {messages.length === 0 && (
                 <div style={{
                   flex: 1, display: "flex", flexDirection: "column",
-                  alignItems: "center", justifyContent: "center", gap: "10px",
-                  color: "rgba(200,200,230,0.2)",
+                  alignItems: "center", justifyContent: "center", gap: "12px",
+                  color: "rgba(200,200,230,0.55)",
+                  textAlign: "center", padding: "24px 12px",
                 }}>
-                  <span style={{ fontSize: "32px", opacity: 0.3 }}>👻</span>
-                  <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "16px", margin: 0 }}>No messages yet</p>
-                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "12px", margin: 0, opacity: 0.7 }}>Start the conversation by sending a message below.</p>
+                  <span style={{
+                    width: "56px", height: "56px", borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "rgba(136,128,255,0.1)",
+                    border: "1px solid rgba(136,128,255,0.25)",
+                    color: "#b0aaff",
+                  }}>
+                    <GhostIcon />
+                  </span>
+                  <p style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: "16px", margin: 0, color: "#e8e8f0" }}>No messages yet</p>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: "12px", margin: 0, opacity: 0.7, maxWidth: "300px", lineHeight: 1.6 }}>
+                    Room history is kept until self-destruct. Say hi — others joining late will see it.
+                  </p>
                 </div>
               )}
 
@@ -690,14 +757,18 @@ function Chat() {
                   return (
                     <div key={i} style={{
                       display: "flex", alignItems: "center", gap: "12px",
-                      margin: "8px 0", justifyContent: "center",
+                      margin: "10px 0", justifyContent: "center",
                     }}>
-                      <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.05)", maxWidth: "80px" }} />
+                      <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)", maxWidth: "90px" }} />
                       <p style={{
                         fontFamily: "'DM Mono', monospace", fontSize: "11px",
-                        color: "rgba(180,178,255,0.4)", margin: 0, letterSpacing: "0.06em",
+                        color: "rgba(180,178,255,0.55)", margin: 0, letterSpacing: "0.06em",
+                        background: "rgba(136,128,255,0.08)",
+                        border: "1px solid rgba(136,128,255,0.15)",
+                        padding: "4px 12px", borderRadius: "999px",
+                        textAlign: "center",
                       }}>{msg.text}</p>
-                      <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.05)", maxWidth: "80px" }} />
+                      <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)", maxWidth: "90px" }} />
                     </div>
                   );
                 }
@@ -707,37 +778,40 @@ function Chat() {
                   <div key={i} style={{
                     display: "flex",
                     justifyContent: isSent ? "flex-end" : "flex-start",
-                    marginBottom: "6px",
+                    marginBottom: "4px",
                     animation: "fadeUp 0.25s cubic-bezier(0.22,1,0.36,1) both",
                   }}>
                     <div style={{
-                      maxWidth: isMobile ? "82%" : "62%",
+                      maxWidth: isMobile ? "85%" : "64%",
+                      minWidth: "64px",
                       background: isSent
-                        ? "linear-gradient(135deg, rgba(102,96,221,0.35), rgba(144,136,238,0.25))"
-                        : "rgba(255,255,255,0.05)",
+                        ? "linear-gradient(135deg, #6d64e8 0%, #9a90ff 100%)"
+                        : "rgba(255,255,255,0.055)",
                       border: isSent
-                        ? "1px solid rgba(136,128,255,0.25)"
-                        : "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: isSent ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                      padding: "10px 14px",
+                        ? "1px solid rgba(255,255,255,0.14)"
+                        : "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: isSent ? "16px 16px 5px 16px" : "16px 16px 16px 5px",
+                      padding: "10px 14px 8px",
                       backdropFilter: "blur(8px)",
-                      boxShadow: isSent ? "0 0 20px rgba(100,90,200,0.1)" : "none",
+                      boxShadow: isSent ? "0 4px 24px rgba(109,100,232,0.28)" : "0 2px 12px rgba(0,0,0,0.25)",
                     }}>
                       {!isSent && (
                         <p style={{
                           fontFamily: "'DM Mono', monospace", fontSize: "10px",
-                          color: "#b0aaff", margin: "0 0 4px 0", letterSpacing: "0.08em",
+                          color: "#a9a3ff", margin: "0 0 5px 0", letterSpacing: "0.08em",
+                          fontWeight: 700,
                         }}>{msg.username}</p>
                       )}
                       <p style={{
                         fontFamily: "'Syne', sans-serif", fontSize: "14px",
-                        color: isSent ? "#e8e8f0" : "rgba(230,230,245,0.9)",
-                        margin: "0 0 4px 0", lineHeight: 1.5,
+                        color: isSent ? "#ffffff" : "rgba(236,236,248,0.95)",
+                        margin: "0 0 5px 0", lineHeight: 1.55,
+                        overflowWrap: "anywhere", whiteSpace: "pre-wrap",
                       }}>{msg.text}</p>
                       <p style={{
                         fontFamily: "'DM Mono', monospace", fontSize: "10px",
-                        color: "rgba(200,200,230,0.3)", margin: 0, textAlign: "right",
-                        letterSpacing: "0.04em",
+                        color: isSent ? "rgba(255,255,255,0.65)" : "rgba(200,200,230,0.35)", margin: 0, textAlign: "right",
+                        letterSpacing: "0.04em", fontVariantNumeric: "tabular-nums",
                       }}>{msg.time}</p>
                     </div>
                   </div>
@@ -748,49 +822,55 @@ function Chat() {
 
             {/* ── INPUT ── */}
             <div style={{
-              padding: isMobile ? "12px" : "16px 20px", flexShrink: 0,
+              padding: isMobile ? "10px 12px calc(12px + env(safe-area-inset-bottom, 0px))" : "16px 20px", flexShrink: 0,
               borderTop: "1px solid rgba(255,255,255,0.07)",
-              background: "rgba(7,7,13,0.85)", backdropFilter: "blur(16px)",
-              display: "flex", alignItems: "center", gap: "12px",
+              background: "rgba(7,7,13,0.9)", backdropFilter: "blur(16px)",
+              display: "flex", alignItems: "center", gap: "10px",
             }}>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Type message..."
+                placeholder="Type a ghost message... 👻"
+                maxLength={2000}
+                aria-label="Type a message"
                 style={{
-                  flex: 1,
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.09)",
-                  borderRadius: "12px", padding: "13px 20px",
+                  flex: 1, minWidth: 0,
+                  background: "rgba(255,255,255,0.055)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "14px", padding: "13px 18px",
                   color: "#e8e8f0", fontFamily: "'Syne', sans-serif", fontSize: "14px",
                   outline: "none", transition: "border-color 0.2s, box-shadow 0.2s",
                 }}
                 onFocus={(e) => {
-                  e.target.style.borderColor = "rgba(136,128,255,0.4)";
-                  e.target.style.boxShadow = "0 0 0 3px rgba(136,128,255,0.08)";
+                  e.target.style.borderColor = "rgba(136,128,255,0.45)";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(136,128,255,0.1)";
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = "rgba(255,255,255,0.09)";
+                  e.target.style.borderColor = "rgba(255,255,255,0.1)";
                   e.target.style.boxShadow = "none";
                 }}
               />
               <button
                 onClick={sendMessage}
+                disabled={!input.trim()}
+                aria-label="Send message"
+                title="Send"
                 style={{
-                  width: "46px", height: "46px", borderRadius: "12px",
+                  width: "48px", height: "48px", borderRadius: "14px",
                   background: input.trim()
-                    ? "linear-gradient(135deg, #6660dd, #9088ee)"
+                    ? "linear-gradient(135deg, #6d64e8, #9a90ff)"
                     : "rgba(255,255,255,0.05)",
-                  border: input.trim() ? "none" : "1px solid rgba(255,255,255,0.09)",
+                  border: input.trim() ? "1px solid rgba(255,255,255,0.14)" : "1px solid rgba(255,255,255,0.09)",
                   color: input.trim() ? "#fff" : "rgba(255,255,255,0.25)",
-                  fontSize: "18px", cursor: input.trim() ? "pointer" : "default",
+                  cursor: input.trim() ? "pointer" : "not-allowed",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   transition: "all 0.2s", flexShrink: 0,
-                  boxShadow: input.trim() ? "0 0 20px rgba(100,90,200,0.3)" : "none",
+                  boxShadow: input.trim() ? "0 4px 20px rgba(109,100,232,0.4)" : "none",
+                  opacity: input.trim() ? 1 : 0.7,
                 }}
               >
-                ↑
+                <SendIcon />
               </button>
             </div>
           </div>
@@ -801,26 +881,87 @@ function Chat() {
 }
 
 // ── Small header button ──────────────────────────────────────────────────────
-function HeaderBtn({ onClick, label, icon }) {
+function HeaderBtn({ onClick, label, title, icon, compact }) {
   const [hov, setHov] = useState(false);
   return (
     <button
       onClick={onClick}
+      title={title || label}
+      aria-label={title || label}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: "flex", alignItems: "center", gap: "5px",
-        background: hov ? "rgba(255,255,255,0.07)" : "transparent",
+        display: "flex", alignItems: "center", gap: "6px",
+        background: hov ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.03)",
         border: "1px solid",
-        borderColor: hov ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)",
-        borderRadius: "6px", padding: "5px 11px",
+        borderColor: hov ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.09)",
+        borderRadius: "8px", padding: compact ? "7px 9px" : "6px 12px",
         fontFamily: "'DM Mono', monospace", fontSize: "10px",
-        letterSpacing: "0.14em", color: hov ? "rgba(220,218,255,0.85)" : "rgba(200,200,230,0.45)",
+        letterSpacing: "0.14em", color: hov ? "rgba(220,218,255,0.9)" : "rgba(200,200,230,0.55)",
         cursor: "pointer", transition: "all 0.18s",
       }}
     >
-      <span>{icon}</span>{label}
+      <span style={{ display: "flex" }}>{icon}</span>{compact ? null : label}
     </button>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+    </svg>
+  );
+}
+
+function DestroyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
+    </svg>
+  );
+}
+
+function UsersIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function GhostIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 10h.01M15 10h.01" />
+      <path d="M10 15c.5.5 1.5.5 2 0 .5-.5 1.5-.5 2 0" />
+      <path d="M5 11a7 7 0 0 1 14 0v9a1 1 0 0 1-1.6.8l-1.9-1.4a1 1 0 0 0-1.2 0l-1.9 1.4a1 1 0 0 1-1.2 0l-1.9-1.4a1 1 0 0 0-1.2 0L6.6 20.8A1 1 0 0 1 5 20Z" />
+    </svg>
   );
 }
 
