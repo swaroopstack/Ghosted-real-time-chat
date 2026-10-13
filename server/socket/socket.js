@@ -17,7 +17,7 @@ export const setupSocket = (io) => {
     console.log("User connected:", socket.id);
 
     // JOIN ROOM
-    socket.on("join-room", ({ roomId: rawRoomId, username: rawUsername }) => {
+    socket.on("join-room", async ({ roomId: rawRoomId, username: rawUsername }) => {
       const roomId = normalizeRoomId(rawRoomId);
       const username = typeof rawUsername === "string" ? rawUsername.trim().slice(0, 30) : "";
 
@@ -39,6 +39,16 @@ export const setupSocket = (io) => {
       // store user info
       users[socket.id] = { username, roomId };
 
+      // send persisted history to the joiner only (refresh / late-join safe)
+      try {
+        const room = await Room.findOne({ roomId }).lean();
+        if (room?.messages?.length) {
+          socket.emit("room-history", room.messages.slice(-200));
+        }
+      } catch (err) {
+        console.log("ROOM HISTORY ERROR:", err);
+      }
+
       socket.to(roomId).emit("user-joined", `${username} joined the room`);
       emitRoomParticipants(roomId);
     });
@@ -56,7 +66,7 @@ export const setupSocket = (io) => {
     });
 
     // SEND MESSAGE (UPDATED WITH TIME)
-    socket.on("send-message", ({ roomId: rawRoomId, message, username: rawUsername, time }) => {
+    socket.on("send-message", async ({ roomId: rawRoomId, message, username: rawUsername, time }) => {
       const roomId = normalizeRoomId(rawRoomId);
       const username = typeof rawUsername === "string" ? rawUsername.trim().slice(0, 30) : "";
       if (!roomId || !username || !message) return;
@@ -70,6 +80,17 @@ export const setupSocket = (io) => {
         username,
         time
       };
+
+      // persist (upsert in case background create hasn't landed yet), cap at 200
+      try {
+        await Room.updateOne(
+          { roomId },
+          { $push: { messages: { $each: [msgData], $slice: -200 } } },
+          { upsert: true }
+        );
+      } catch (err) {
+        console.log("SAVE MESSAGE ERROR:", err);
+      }
 
       socket.to(roomId).emit("receive-message", msgData);
     });

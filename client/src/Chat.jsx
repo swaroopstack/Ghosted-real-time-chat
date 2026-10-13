@@ -62,6 +62,9 @@ function Chat() {
   const destroySoundRef = useRef(null);
   const socketRef = useRef(null);
   const joinedRef = useRef(false);
+  const usernameRef = useRef(username);
+  const historyLoadedRef = useRef(null);
+  usernameRef.current = username;
 
   const getBackendUrl = () =>
     (import.meta.env.VITE_BACKEND_URL || "").replace(/\/$/, "");
@@ -225,6 +228,26 @@ function Chat() {
         text: data.message,
         time: data.time,
       }]);
+    });
+
+    // persisted history — refresh-safe + late-joiner sees prior messages
+    sock.on("room-history", (history) => {
+      if (!Array.isArray(history) || !history.length) return;
+      if (historyLoadedRef.current === roomId) return;
+      historyLoadedRef.current = roomId;
+      const me = usernameRef.current;
+      const mapped = history.map((m) => ({
+        type: m.username === me ? "sent" : "received",
+        username: m.username,
+        text: m.message,
+        time: m.time,
+      }));
+      setMessages((prev) => {
+        if (!prev.length) return mapped;
+        const seen = new Set(prev.map((p) => `${p.username}|${p.text}|${p.time}`));
+        const fresh = mapped.filter((m) => !seen.has(`${m.username}|${m.text}|${m.time}`));
+        return [...fresh, ...prev];
+      });
     });
 
     sock.on("user-joined", (msg) => {

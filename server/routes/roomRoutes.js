@@ -92,7 +92,7 @@ router.get("/room/:roomId", async (req, res) => {
       return res.status(404).json({ error: "Room not found or expired" });
     }
 
-    res.json({ roomId, expiresAt, createdAt });
+    res.json({ roomId, expiresAt, createdAt, messages: (room.messages || []).slice(-200) });
   } catch (error) {
     console.log("GET ROOM ERROR:", error);
     res.status(500).json({ error: error.message });
